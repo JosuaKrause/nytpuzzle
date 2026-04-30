@@ -4,7 +4,10 @@ import {
   fetchStrands,
   fetchMini,
   fetchMiniGameState,
+  fetchGamesState,
+  postGamesState,
 } from './nytClient';
+import type { GameStateSyncPayload } from './nytClient';
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
@@ -138,5 +141,67 @@ describe('fetchMiniGameState', () => {
   it('throws on non-ok response', async () => {
     mockError(401);
     await expect(fetchMiniGameState(1, 'BAD')).rejects.toThrow('NYT API error 401');
+  });
+});
+
+describe('fetchGamesState', () => {
+  it('calls the correct endpoint with game and puzzleId', async () => {
+    mockOk({ states: [], user_id: 1 });
+    await fetchGamesState('wordleV2', '2286', 'S', 'A');
+    expect(mockFetch.mock.calls[0][0]).toBe(
+      'https://www.nytimes.com/svc/games/state/wordleV2/latests?puzzle_ids=2286',
+    );
+    expect(mockFetch.mock.calls[0][1].headers['Cookie']).toBe('NYT-S=S; nyt-a=A');
+  });
+
+  it('omits nyt-a when not provided', async () => {
+    mockOk({ states: [], user_id: 1 });
+    await fetchGamesState('connections', '1137', 'S');
+    expect(mockFetch.mock.calls[0][1].headers['Cookie']).toBe('NYT-S=S');
+  });
+
+  it('throws on non-ok response', async () => {
+    mockError(401);
+    await expect(fetchGamesState('strands', '960', 'BAD')).rejects.toThrow('NYT API error 401');
+  });
+});
+
+describe('postGamesState', () => {
+  const payload: GameStateSyncPayload = {
+    game: 'wordleV2',
+    game_data: {
+      boardState: ['crane'],
+      currentRowIndex: 1,
+      hardMode: false,
+      isPlayingArchive: false,
+      status: 'IN_PROGRESS',
+    },
+    puzzle_id: '2286',
+    print_date: '2026-04-29',
+    schema_version: '0.45.0',
+    timestamp: 1777500000,
+    user_id: 95076669,
+  };
+
+  it('POSTs to svc/games/state with cookie and JSON body', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 201 });
+    await postGamesState(payload, 'S', 'A');
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe('https://www.nytimes.com/svc/games/state');
+    expect(init.method).toBe('POST');
+    expect(init.headers['Content-Type']).toBe('application/json');
+    expect(init.headers['Cookie']).toBe('NYT-S=S; nyt-a=A');
+    expect(JSON.parse(init.body as string).game).toBe('wordleV2');
+  });
+
+  it('omits nyt-a cookie when not provided', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 201 });
+    await postGamesState(payload, 'S');
+    expect(mockFetch.mock.calls[0][1].headers['Cookie']).toBe('NYT-S=S');
+  });
+
+  it('throws on non-ok response', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });
+    await expect(postGamesState(payload, 'BAD')).rejects.toThrow('NYT API error 500');
   });
 });

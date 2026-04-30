@@ -1,0 +1,15 @@
+- generic [ref=e7]:
+  - img "wordle" [ref=e8]
+  - heading "Wordle" [level=1] [ref=e9]
+  - heading "Get 6 chances to guess a 5-letter word." [level=2] [ref=e10]:
+    - generic [ref=e11]: Get 6 chances to guess a 5-letter word.
+    - generic [ref=e12]: Get 6 chances to guess a 5-letter word.
+  - generic [ref=e14]:
+    - button "75% off" [ref=e15] [cursor=pointer]
+    - link "Log in" [ref=e16] [cursor=pointer]:
+      - /url: https://myaccount.nytimes.com/auth/enter-email?response_type=cookie&client_id=games&application=nyt-lires&asset=&redirect_uri=https%3A%2F%2Fwww.nytimes.com%2Fsubscription%2Fgames-offer%3FcampaignId%3D8YUQL%26EXIT_URI%3Dhttps%253A%252F%252Fwww.nytimes.com%252Fgames%252Fwordle%252Findex.html
+    - button "Play" [ref=e17] [cursor=pointer]
+  - generic [ref=e18]:
+    - heading "April 29, 2026" [level=3] [ref=e19]
+    - paragraph [ref=e20]: No. 1775
+    - paragraph [ref=e21]: Edited by Tracy Bennett

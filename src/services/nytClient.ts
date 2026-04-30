@@ -112,6 +112,83 @@ export interface MiniGameState {
   lastSolve?: number;
 }
 
+// --- Games state API ---
+
+export type GamesStateName = 'wordleV2' | 'connections' | 'strands';
+
+export interface WordleGameData {
+  boardState: string[];
+  currentRowIndex: number;
+  hardMode: boolean;
+  isPlayingArchive: boolean;
+  status: 'IN_PROGRESS' | 'WIN' | 'FAIL';
+}
+
+export interface ConnectionsStateCard {
+  position: number;
+  level: number;
+}
+
+export interface ConnectionsGuess {
+  cards: ConnectionsStateCard[];
+  correct: boolean;
+}
+
+export interface ConnectionsSolvedCategory {
+  cards: ConnectionsStateCard[];
+  level: number;
+  orderSolved: number;
+}
+
+export interface ConnectionsGameData {
+  puzzleComplete: boolean;
+  puzzleWon: boolean;
+  mistakes: number;
+  guesses: ConnectionsGuess[];
+  solvedCategories: ConnectionsSolvedCategory[];
+  isPlayingArchive: boolean;
+}
+
+export interface StrandsHistoryEntry {
+  t: 'THEME' | 'SPANGRAM' | 'HINT';
+  w: string;
+}
+
+export interface StrandsGameData {
+  history: StrandsHistoryEntry[];
+  isPlayingArchive: boolean;
+  isSolved: boolean;
+  otherWordsFound: string[];
+}
+
+export type AnyGameData = WordleGameData | ConnectionsGameData | StrandsGameData;
+
+export interface GamesStateRecord {
+  game_data: AnyGameData;
+  puzzle_id: string;
+  game: GamesStateName;
+  user_id: number;
+  version: string;
+  timestamp: number;
+  print_date: string;
+  schema_version: string;
+}
+
+export interface GamesStateResponse {
+  states: GamesStateRecord[];
+  user_id: number;
+}
+
+export interface GameStateSyncPayload {
+  game: GamesStateName;
+  game_data: AnyGameData;
+  puzzle_id: string;
+  print_date: string;
+  schema_version: string;
+  timestamp: number;
+  user_id: number;
+}
+
 const BASE = 'https://www.nytimes.com';
 
 function dateParam(date: Date | string): string {
@@ -132,6 +209,16 @@ async function nytFetch<T>(url: string, cookie?: string, extraHeaders?: Record<s
     throw new Error(`NYT API error ${res.status} for ${url}`);
   }
   return res.json() as Promise<T>;
+}
+
+async function nytPost(url: string, body: unknown, cookie: string): Promise<void> {
+  const headers: Record<string, string> = {
+    'User-Agent': 'Mozilla/5.0 (compatible; nytpuzzle/1.0)',
+    'Content-Type': 'application/json',
+    'Cookie': cookie,
+  };
+  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error(`NYT API error ${res.status} for ${url}`);
 }
 
 function cookieHeader(nytS: string, nytA?: string): string {
@@ -164,4 +251,24 @@ export async function fetchMiniGameState(puzzleId: number, nytS: string, nytA?: 
     `${BASE}/svc/crosswords/v6/game/${puzzleId}.json`,
     cookieHeader(nytS, nytA),
   );
+}
+
+export async function fetchGamesState(
+  game: GamesStateName,
+  puzzleId: string,
+  nytS: string,
+  nytA?: string,
+): Promise<GamesStateResponse> {
+  return nytFetch<GamesStateResponse>(
+    `${BASE}/svc/games/state/${game}/latests?puzzle_ids=${puzzleId}`,
+    cookieHeader(nytS, nytA),
+  );
+}
+
+export async function postGamesState(
+  payload: GameStateSyncPayload,
+  nytS: string,
+  nytA?: string,
+): Promise<void> {
+  await nytPost(`${BASE}/svc/games/state`, payload, cookieHeader(nytS, nytA));
 }

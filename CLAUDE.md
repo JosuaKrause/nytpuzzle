@@ -44,7 +44,10 @@ Single file that wraps all four NYT puzzle APIs. Key facts discovered from live 
 - **Wordle/Connections** field names use `snake_case`; **Strands** uses `camelCase` (`printDate`, `themeWords`, `startingBoard`).
 - **Mini** response wraps everything in a `body: [MiniBody]` array (single-element tuple).
 - Authentication uses two cookies: `NYT-S` (session, ~6–12 month TTL) and `nyt-a` (anonymous ID). Both go in `.env` as `NYT_S` and `NYT_A`. Scripts load them via `dotenv/config`.
-- `svc/games/state` (the documented Wordle/Connections/Strands state endpoint) returns 500 "unauthorized" even with both cookies — its auth mechanism is not yet understood. Mini game state works via the crossword endpoint above.
+- `svc/games/state` — **confirmed working** with NYT-S + nyt-a cookies:
+  - **GET** `svc/games/state/{game}/latests?puzzle_ids={id}` → 200 — fetch saved state. Game names: `wordleV2`, `connections`, `strands`.
+  - **POST** `svc/games/state` → 201 — sync state to server. Body: `{ game, game_data, puzzle_id, print_date, schema_version: "0.45.0", timestamp, user_id }`. `user_id` comes from the GET response.
+- Mini game state works via the crossword endpoint above.
 
 See [PLAN.md](PLAN.md) for the full app plan and planned service layer structure.
 

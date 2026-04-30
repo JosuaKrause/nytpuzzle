@@ -37,5 +37,5 @@ src/
 
 ## Open questions
 
-- Score POST body format for Wordle/Connections/Strands needs reverse-engineering (browser network inspection during game completion). `svc/games/state` returns 500 "unauthorized" with current auth — exact mechanism unknown.
+- ~~Score POST body format for Wordle/Connections/Strands~~ — **resolved**. `POST /svc/games/state` with cookies + `{ game, game_data, puzzle_id, print_date, schema_version: "0.45.0", timestamp, user_id }` → 201. See CLAUDE.md for full `game_data` shapes per game.
 - Mini game state works via `svc/crosswords/v6/game/{id}.json` (confirmed).

@@ -1,0 +1,168 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - button "Navigation menu button" [ref=e4] [cursor=pointer]
+      - link "New York Times Games Logo. Click for more puzzles" [ref=e7] [cursor=pointer]:
+        - /url: /crosswords
+        - img [ref=e8]
+  - text: Oh no! We can’t fit everything on your screen. Please rotate your device.
+  - generic [ref=e17]:
+    - generic [ref=e18]:
+      - text: advertisement
+      - link "Skip Advertisement" [ref=e19] [cursor=pointer]:
+        - /url: "#after-top"
+    - generic [ref=e20]:
+      - heading "Strands April 29, 2026" [level=1] [ref=e23]:
+        - emphasis [ref=e24]: Strands
+        - generic [ref=e25]: April 29, 2026
+      - generic [ref=e37]:
+        - heading "Strands" [level=2] [ref=e39]
+        - heading "Great job on today’s puzzle! Check out your progress." [level=3] [ref=e40]:
+          - text: Great job on today’s puzzle!
+          - text: Check out your progress.
+        - button "Admire puzzle" [ref=e44] [cursor=pointer]
+        - paragraph [ref=e45]:
+          - generic [ref=e46]: Game information
+          - generic [ref=e47]: April 29, 2026
+          - generic [ref=e48]:
+            - generic [ref=e49]: No. 787
+            - generic [ref=e50]: Puzzle by Zoe Bell
+            - generic [ref=e51]: Edited by Tracy Bennett
+    - generic [ref=e52]:
+      - text: advertisement
+      - link "Skip Advertisement" [ref=e53] [cursor=pointer]:
+        - /url: "#after-bottom"
+  - contentinfo [ref=e54]:
+    - generic [ref=e55]:
+      - generic [ref=e56]:
+        - heading "About New York Times Games" [level=2] [ref=e57]
+        - paragraph [ref=e58]: Since the launch of the Crossword in 1942, The Times has captivated solvers by providing engaging word and logic games. In 2014, we introduced the Mini Crossword — followed by Spelling Bee, Letter Boxed, Tiles, Wordle, Connections and more. We strive to offer puzzles for all skill levels that everyone can enjoy playing every day.
+      - generic [ref=e59]:
+        - heading "New York Times Games" [level=3] [ref=e60]
+        - list [ref=e61]:
+          - listitem [ref=e62]:
+            - link "Crossplay" [ref=e63] [cursor=pointer]:
+              - /url: /games/crossplay
+              - text: Crossplay
+          - listitem [ref=e65]:
+            - link "The Crossword" [ref=e66] [cursor=pointer]:
+              - /url: /crosswords/game/daily
+              - text: The Crossword
+          - listitem [ref=e68]:
+            - link "The Midi Crossword" [ref=e69] [cursor=pointer]:
+              - /url: /crosswords/game/midi
+              - text: The Midi Crossword
+          - listitem [ref=e71]:
+            - link "The Mini Crossword" [ref=e72] [cursor=pointer]:
+              - /url: /crosswords/game/mini
+              - text: The Mini Crossword
+          - listitem [ref=e74]:
+            - link "Spelling Bee" [ref=e75] [cursor=pointer]:
+              - /url: /puzzles/spelling-bee
+              - text: Spelling Bee
+          - listitem [ref=e77]:
+            - link "Wordle" [ref=e78] [cursor=pointer]:
+              - /url: /games/wordle/index.html
+              - text: Wordle
+          - listitem [ref=e80]:
+            - link "Pips" [ref=e81] [cursor=pointer]:
+              - /url: /games/pips
+              - text: Pips
+          - listitem [ref=e83]:
+            - link "Strands" [ref=e84] [cursor=pointer]:
+              - /url: /games/strands
+              - text: Strands
+          - listitem [ref=e86]:
+            - link "Connections" [ref=e87] [cursor=pointer]:
+              - /url: /games/connections
+              - text: Connections
+          - listitem [ref=e89]:
+            - link "Tiles" [ref=e90] [cursor=pointer]:
+              - /url: /puzzles/tiles
+              - text: Tiles
+          - listitem [ref=e92]:
+            - link "Letter Boxed" [ref=e93] [cursor=pointer]:
+              - /url: /puzzles/letter-boxed
+              - text: Letter Boxed
+          - listitem [ref=e95]:
+            - link "Sudoku" [ref=e96] [cursor=pointer]:
+              - /url: /puzzles/sudoku
+              - text: Sudoku
+          - listitem [ref=e98]:
+            - link "All Games" [ref=e99] [cursor=pointer]:
+              - /url: /crosswords
+      - generic [ref=e100]:
+        - heading "Crosswords" [level=3] [ref=e101]
+        - list [ref=e102]:
+          - listitem [ref=e103]:
+            - link "Crossword Archives" [ref=e104] [cursor=pointer]:
+              - /url: /crosswords/archive
+          - listitem [ref=e105]:
+            - link "Statistics" [ref=e106] [cursor=pointer]:
+              - /url: /puzzles/stats
+          - listitem [ref=e107]:
+            - link "Leaderboards" [ref=e108] [cursor=pointer]:
+              - /url: /puzzles/leaderboards
+          - listitem [ref=e109]:
+            - link "Submit a Crossword" [ref=e110] [cursor=pointer]:
+              - /url: https://nytimes.com/article/submit-crossword-puzzles-the-new-york-times.html
+        - heading "Community" [level=3] [ref=e111]
+        - list [ref=e112]:
+          - listitem [ref=e113]:
+            - link "Gameplay Stories" [ref=e114] [cursor=pointer]:
+              - /url: https://www.nytimes.com/column/wordplay
+          - listitem [ref=e115]:
+            - link "Spelling Bee Forum" [ref=e116] [cursor=pointer]:
+              - /url: https://www.nytimes.com/spotlight/spelling-bee-forum
+          - listitem [ref=e117]:
+            - link "Games Threads" [ref=e118] [cursor=pointer]:
+              - /url: https://www.threads.net/@nytgames
+      - generic [ref=e119]:
+        - heading "Learn More" [level=3] [ref=e120]
+        - list [ref=e121]:
+          - listitem [ref=e122]:
+            - link "FAQs" [ref=e123] [cursor=pointer]:
+              - /url: "https://help.nytimes.com/hc/en-us/sections/360011158491-NYT-Games "
+          - listitem [ref=e124]:
+            - link "Gift Subscriptions" [ref=e125] [cursor=pointer]:
+              - /url: https://www.nytimes.com/subscription/games/gift
+          - listitem [ref=e126]:
+            - link "Shop the Games Collection" [ref=e127] [cursor=pointer]:
+              - /url: https://store.nytimes.com/collections/games?utm_campaign=games_collection&utm_content=footer&utm_medium=referral&utm_source=nyt_games
+          - listitem [ref=e128]:
+            - link "Download the App" [ref=e129] [cursor=pointer]:
+              - /url: /crosswords/apps
+          - listitem
+      - list [ref=e132]:
+        - listitem [ref=e133]:
+          - link "© 2026 The New York Times Company" [ref=e134] [cursor=pointer]:
+            - /url: https://www.nytco.com/
+        - listitem [ref=e135]:
+          - text: "|"
+          - link "NYTimes.com" [ref=e136] [cursor=pointer]:
+            - /url: https://www.nytimes.com
+        - listitem [ref=e137]:
+          - text: "|"
+          - link "Sitemap" [ref=e138] [cursor=pointer]:
+            - /url: https://www.nytimes.com/sitemap/
+        - listitem [ref=e139]:
+          - text: "|"
+          - link "Privacy Policy" [ref=e140] [cursor=pointer]:
+            - /url: https://www.nytimes.com/privacy/privacy-policy
+        - listitem [ref=e141]:
+          - text: "|"
+          - link "Terms of Service" [ref=e142] [cursor=pointer]:
+            - /url: https://help.nytimes.com/hc/en-us/articles/115014893428-Terms-of-service
+        - listitem [ref=e143]:
+          - text: "|"
+          - link "Cookie Policy" [ref=e144] [cursor=pointer]:
+            - /url: https://www.nytimes.com/privacy/cookie-policy
+        - listitem [ref=e145]:
+          - text: "|"
+          - link "Terms of Sale" [ref=e146] [cursor=pointer]:
+            - /url: https://help.nytimes.com/hc/en-us/articles/115014893968-Terms-of-sale
+        - listitem [ref=e147]:
+          - text: "|"
+          - link "Your Privacy Choices" [ref=e148] [cursor=pointer]:
+            - /url: https://www.nytimes.com/privacy/your-privacy-choices
+            - text: Your Privacy Choices
