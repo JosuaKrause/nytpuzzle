@@ -1,4 +1,10 @@
-import { fetchWordle, fetchConnections, fetchStrands, fetchMini, fetchGameState } from './nytClient';
+import {
+  fetchWordle,
+  fetchConnections,
+  fetchStrands,
+  fetchMini,
+  fetchMiniGameState,
+} from './nytClient';
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
@@ -43,7 +49,7 @@ describe('fetchWordle', () => {
 
 describe('fetchConnections', () => {
   it('calls the correct endpoint', async () => {
-    mockOk({ id: 1, print_date: '2026-04-29', categories: [] });
+    mockOk({ status: 'OK', id: 1, print_date: '2026-04-29', editor: 'x', categories: [] });
     await fetchConnections('2026-04-29');
     expect(mockFetch.mock.calls[0][0]).toBe(
       'https://www.nytimes.com/svc/connections/v2/2026-04-29.json',
@@ -58,27 +64,52 @@ describe('fetchConnections', () => {
 
 describe('fetchStrands', () => {
   it('calls the correct endpoint', async () => {
-    mockOk({ id: 1, print_date: '2026-04-29', spangram: 'HELLO', theme_words: [], clue: 'test', starting_board: [] });
+    mockOk({
+      status: 'OK',
+      id: 1,
+      printDate: '2026-04-29',
+      themeWords: [],
+      editor: 'x',
+      constructors: 'y',
+      spangram: 'TACKLE',
+      clue: 'test',
+      startingBoard: [],
+      solutions: [],
+      themeCoords: {},
+      spangramCoords: [],
+    });
     await fetchStrands('2026-04-29');
     expect(mockFetch.mock.calls[0][0]).toBe(
       'https://www.nytimes.com/svc/strands/v2/2026-04-29.json',
     );
   });
+
+  it('throws on non-ok response', async () => {
+    mockError(500);
+    await expect(fetchStrands('2026-01-01')).rejects.toThrow('NYT API error 500');
+  });
 });
 
 describe('fetchMini', () => {
   it('sends X-Games-Auth-Bypass header', async () => {
-    mockOk({ id: 1, print_date: '2026-04-29', clues: [], cells: [], dimensions: { rows: 5, cols: 5 } });
+    mockOk({ id: 1, publicationDate: '2026-04-29', constructors: [], copyright: '2026', subcategory: 2, lastUpdated: '', body: [{}] });
     await fetchMini('2026-04-29');
     const [, init] = mockFetch.mock.calls[0];
     expect(init.headers['X-Games-Auth-Bypass']).toBe('true');
   });
 
-  it('includes cookie when provided', async () => {
-    mockOk({ id: 1, print_date: '2026-04-29', clues: [], cells: [], dimensions: { rows: 5, cols: 5 } });
+  it('includes cookie when nytS provided', async () => {
+    mockOk({ id: 1, publicationDate: '2026-04-29', constructors: [], copyright: '2026', subcategory: 2, lastUpdated: '', body: [{}] });
     await fetchMini('2026-04-29', 'MY_COOKIE');
     const [, init] = mockFetch.mock.calls[0];
     expect(init.headers['Cookie']).toBe('NYT-S=MY_COOKIE');
+  });
+
+  it('includes both cookies when nytS and nytA provided', async () => {
+    mockOk({ id: 1, publicationDate: '2026-04-29', constructors: [], copyright: '2026', subcategory: 2, lastUpdated: '', body: [{}] });
+    await fetchMini('2026-04-29', 'S_COOKIE', 'A_COOKIE');
+    const [, init] = mockFetch.mock.calls[0];
+    expect(init.headers['Cookie']).toBe('NYT-S=S_COOKIE; nyt-a=A_COOKIE');
   });
 
   it('throws on non-ok response', async () => {
@@ -87,11 +118,25 @@ describe('fetchMini', () => {
   });
 });
 
-describe('fetchGameState', () => {
+describe('fetchMiniGameState', () => {
+  it('calls the crossword game endpoint with the puzzle id', async () => {
+    mockOk({ puzzleID: 23967, userID: 1, timestamp: 0, lastCommitID: 'abc', board: { cells: [] }, calcs: { percentFilled: 100, secondsSpentSolving: 86, solved: true }, firsts: { opened: 0 } });
+    const state = await fetchMiniGameState(23967, 'S_COOKIE', 'A_COOKIE');
+    expect(mockFetch.mock.calls[0][0]).toBe(
+      'https://www.nytimes.com/svc/crosswords/v6/game/23967.json',
+    );
+    expect(state.calcs.solved).toBe(true);
+  });
+
   it('sends the NYT-S cookie', async () => {
-    mockOk({ wordle: {}, spelling_bee: {} });
-    await fetchGameState('MYSESSION');
+    mockOk({ puzzleID: 1, userID: 1, timestamp: 0, lastCommitID: '', board: { cells: [] }, calcs: { percentFilled: 0, secondsSpentSolving: 0, solved: false }, firsts: { opened: 0 } });
+    await fetchMiniGameState(1, 'MYSESSION');
     const [, init] = mockFetch.mock.calls[0];
     expect(init.headers['Cookie']).toBe('NYT-S=MYSESSION');
+  });
+
+  it('throws on non-ok response', async () => {
+    mockError(401);
+    await expect(fetchMiniGameState(1, 'BAD')).rejects.toThrow('NYT API error 401');
   });
 });

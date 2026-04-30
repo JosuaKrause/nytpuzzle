@@ -1,5 +1,6 @@
 export type GameType = 'wordle' | 'connections' | 'strands' | 'mini';
 
+// --- Wordle ---
 export interface WordlePuzzle {
   id: number;
   solution: string;
@@ -8,45 +9,107 @@ export interface WordlePuzzle {
   editor: string;
 }
 
+// --- Connections ---
+export interface ConnectionsCard {
+  content: string;
+  position: number;
+}
+
 export interface ConnectionsCategory {
   title: string;
-  cards: Array<{ content: string; position: number }>;
-  difficulty: number;
+  cards: ConnectionsCard[];
 }
 
 export interface ConnectionsPuzzle {
+  status: string;
   id: number;
   print_date: string;
+  editor: string;
   categories: ConnectionsCategory[];
 }
 
+// --- Strands (all camelCase from the API) ---
 export interface StrandsPuzzle {
+  status: string;
   id: number;
-  print_date: string;
+  printDate: string;
+  themeWords: string[];
+  editor: string;
+  constructors: string;
   spangram: string;
-  theme_words: string[];
   clue: string;
-  starting_board: string[][];
+  startingBoard: string[];
+  solutions: string[];
+  themeCoords: Record<string, [number, number][]>;
+  spangramCoords: [number, number][];
+}
+
+// --- Mini crossword ---
+export interface MiniCell {
+  blank?: true;
+  answer?: string;
+  clues?: number[];
+  label?: string;
+  type?: number;
+}
+
+export interface MiniClueText {
+  plain: string;
 }
 
 export interface MiniClue {
-  text: string;
-  direction: 'Across' | 'Down';
-  label: number;
   cells: number[];
+  direction: 'Across' | 'Down';
+  label: string;
+  list?: number;
+  relatives?: number[];
+  text: MiniClueText[];
+}
+
+export interface MiniClueList {
+  clues: number[];
+  name: string;
+}
+
+export interface MiniBody {
+  cells: MiniCell[];
+  clueLists: MiniClueList[];
+  clues: MiniClue[];
+  dimensions: { height: number; width: number };
+  board: string;
 }
 
 export interface MiniPuzzle {
   id: number;
-  print_date: string;
-  clues: MiniClue[];
-  cells: Array<{ answer: string; type: number }>;
-  dimensions: { rows: number; cols: number };
+  publicationDate: string;
+  constructors: string[];
+  copyright: string;
+  subcategory: number;
+  lastUpdated: string;
+  body: [MiniBody];
 }
 
-export interface NytGameState {
-  wordle?: unknown;
-  spelling_bee?: unknown;
+// --- Mini game state (svc/crosswords/v6/game/{id}) ---
+export interface MiniGameCell {
+  blank?: true;
+  guess?: string;
+  timestamp?: number;
+}
+
+export interface MiniGameState {
+  puzzleID: number;
+  userID: number;
+  timestamp: number;
+  lastCommitID: string;
+  board: { cells: MiniGameCell[] };
+  calcs: {
+    percentFilled: number;
+    secondsSpentSolving: number;
+    solved: boolean;
+  };
+  firsts: { opened: number; solved?: number };
+  minGuessTime?: number;
+  lastSolve?: number;
 }
 
 const BASE = 'https://www.nytimes.com';
@@ -56,12 +119,13 @@ function dateParam(date: Date | string): string {
   return date.toISOString().slice(0, 10);
 }
 
-async function nytFetch<T>(url: string, cookie?: string): Promise<T> {
+async function nytFetch<T>(url: string, cookie?: string, extraHeaders?: Record<string, string>): Promise<T> {
   const headers: Record<string, string> = {
     'User-Agent': 'Mozilla/5.0 (compatible; nytpuzzle/1.0)',
+    ...extraHeaders,
   };
   if (cookie) {
-    headers['Cookie'] = `NYT-S=${cookie}`;
+    headers['Cookie'] = cookie;
   }
   const res = await fetch(url, { headers });
   if (!res.ok) {
@@ -70,37 +134,34 @@ async function nytFetch<T>(url: string, cookie?: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+function cookieHeader(nytS: string, nytA?: string): string {
+  return nytA ? `NYT-S=${nytS}; nyt-a=${nytA}` : `NYT-S=${nytS}`;
+}
+
 export async function fetchWordle(date: Date | string): Promise<WordlePuzzle> {
-  const d = dateParam(date);
-  return nytFetch<WordlePuzzle>(`${BASE}/svc/wordle/v2/${d}.json`);
+  return nytFetch<WordlePuzzle>(`${BASE}/svc/wordle/v2/${dateParam(date)}.json`);
 }
 
 export async function fetchConnections(date: Date | string): Promise<ConnectionsPuzzle> {
-  const d = dateParam(date);
-  return nytFetch<ConnectionsPuzzle>(`${BASE}/svc/connections/v2/${d}.json`);
+  return nytFetch<ConnectionsPuzzle>(`${BASE}/svc/connections/v2/${dateParam(date)}.json`);
 }
 
 export async function fetchStrands(date: Date | string): Promise<StrandsPuzzle> {
-  const d = dateParam(date);
-  return nytFetch<StrandsPuzzle>(`${BASE}/svc/strands/v2/${d}.json`);
+  return nytFetch<StrandsPuzzle>(`${BASE}/svc/strands/v2/${dateParam(date)}.json`);
 }
 
-export async function fetchMini(date: Date | string, cookie?: string): Promise<MiniPuzzle> {
-  const d = dateParam(date);
-  const headers: Record<string, string> = {
-    'User-Agent': 'Mozilla/5.0 (compatible; nytpuzzle/1.0)',
-    'X-Games-Auth-Bypass': 'true',
-  };
-  if (cookie) {
-    headers['Cookie'] = `NYT-S=${cookie}`;
-  }
-  const res = await fetch(`${BASE}/svc/crosswords/v6/puzzle/mini/${d}.json`, { headers });
-  if (!res.ok) {
-    throw new Error(`NYT API error ${res.status} for mini ${d}`);
-  }
-  return res.json() as Promise<MiniPuzzle>;
+export async function fetchMini(date: Date | string, nytS?: string, nytA?: string): Promise<MiniPuzzle> {
+  const cookie = nytS ? cookieHeader(nytS, nytA) : undefined;
+  return nytFetch<MiniPuzzle>(
+    `${BASE}/svc/crosswords/v6/puzzle/mini/${dateParam(date)}.json`,
+    cookie,
+    { 'X-Games-Auth-Bypass': 'true' },
+  );
 }
 
-export async function fetchGameState(cookie: string): Promise<NytGameState> {
-  return nytFetch<NytGameState>(`${BASE}/svc/games/state`, cookie);
+export async function fetchMiniGameState(puzzleId: number, nytS: string, nytA?: string): Promise<MiniGameState> {
+  return nytFetch<MiniGameState>(
+    `${BASE}/svc/crosswords/v6/game/${puzzleId}.json`,
+    cookieHeader(nytS, nytA),
+  );
 }
