@@ -46,18 +46,7 @@ Single file that wraps all four NYT puzzle APIs. Key facts discovered from live 
 - Authentication uses two cookies: `NYT-S` (session, ~6–12 month TTL) and `nyt-a` (anonymous ID). Both go in `.env` as `NYT_S` and `NYT_A`. Scripts load them via `dotenv/config`.
 - `svc/games/state` (the documented Wordle/Connections/Strands state endpoint) returns 500 "unauthorized" even with both cookies — its auth mechanism is not yet understood. Mini game state works via the crossword endpoint above.
 
-### Planned structure (not yet built)
-
-```
-src/
-  services/
-    nytClient.ts      # ✅ done — typed API wrappers
-    puzzleStore.ts    # SQLite storage for offline puzzle data
-    syncQueue.ts      # Queue for pending score submissions
-    preloader.ts      # Pre-fetch puzzles on WiFi
-  screens/            # HomeScreen + per-game screens
-  components/         # SyncBadge (synced / pending / failed)
-```
+See [PLAN.md](PLAN.md) for the full app plan and planned service layer structure.
 
 ### Coverage
 
