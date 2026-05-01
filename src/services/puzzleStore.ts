@@ -100,3 +100,23 @@ export async function markFailed(game: string, date: string): Promise<void> {
     [game, date],
   );
 }
+
+export async function getCachedGames(date: string): Promise<string[]> {
+  const rows = await getDb().getAllAsync<{ game: string }>(
+    'SELECT game FROM puzzles WHERE date = ?',
+    [date],
+  );
+  return rows.map(r => r.game);
+}
+
+export async function getCompletionStatuses(date: string): Promise<Record<string, SyncStatus>> {
+  const rows = await getDb().getAllAsync<{ game: string; sync_status: string }>(
+    'SELECT game, sync_status FROM completions WHERE date = ?',
+    [date],
+  );
+  const result: Record<string, SyncStatus> = {};
+  for (const row of rows) {
+    result[row.game] = row.sync_status as SyncStatus;
+  }
+  return result;
+}

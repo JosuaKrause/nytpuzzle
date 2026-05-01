@@ -7,6 +7,8 @@ import {
   getPendingCompletions,
   markSynced,
   markFailed,
+  getCachedGames,
+  getCompletionStatuses,
 } from './puzzleStore';
 
 jest.mock('expo-sqlite');
@@ -114,5 +116,40 @@ describe('markFailed', () => {
       expect.stringContaining("sync_status = 'failed'"),
       expect.arrayContaining(['wordleV2', '2026-04-29']),
     );
+  });
+});
+
+describe('getCachedGames', () => {
+  it('returns game names for a given date', async () => {
+    mockDb.getAllAsync.mockResolvedValue([{ game: 'wordle' }, { game: 'strands' }]);
+    const games = await getCachedGames('2026-04-29');
+    expect(games).toEqual(['wordle', 'strands']);
+    expect(mockDb.getAllAsync).toHaveBeenCalledWith(
+      expect.stringContaining('SELECT game FROM puzzles'),
+      ['2026-04-29'],
+    );
+  });
+
+  it('returns empty array when nothing cached', async () => {
+    mockDb.getAllAsync.mockResolvedValue([]);
+    const games = await getCachedGames('2026-04-29');
+    expect(games).toHaveLength(0);
+  });
+});
+
+describe('getCompletionStatuses', () => {
+  it('returns a game-to-status map for a given date', async () => {
+    mockDb.getAllAsync.mockResolvedValue([
+      { game: 'wordleV2', sync_status: 'synced' },
+      { game: 'connections', sync_status: 'pending' },
+    ]);
+    const statuses = await getCompletionStatuses('2026-04-29');
+    expect(statuses).toEqual({ wordleV2: 'synced', connections: 'pending' });
+  });
+
+  it('returns empty object when no completions', async () => {
+    mockDb.getAllAsync.mockResolvedValue([]);
+    const statuses = await getCompletionStatuses('2026-04-29');
+    expect(statuses).toEqual({});
   });
 });
