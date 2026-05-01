@@ -13,6 +13,7 @@ const puzzle = { id: 1775, solution: 'RURAL', print_date: '2026-04-29', days_sin
 
 const mockNavigation = { goBack: jest.fn() };
 const mockRoute = { params: { date: '2026-04-29' } };
+const mockRouteDryRun = { params: { date: '2026-04-29', dryRun: true } };
 
 function renderScreen() {
   return render(
@@ -187,6 +188,24 @@ describe('WordleScreen', () => {
     pressWord('RAL'); // fills 3 more → total 4 out of 5 (still needs 1 more)
     fireEvent.press(screen.getByTestId('key-ENTER'));
     expect(screen.getByText('Not enough letters')).toBeTruthy();
+  });
+
+  it('shows DRY RUN label when dryRun param is true', async () => {
+    render(
+      <WordleScreen route={mockRouteDryRun as never} navigation={mockNavigation as never} />,
+    );
+    await waitFor(() => screen.getByText('DRY RUN'));
+  });
+
+  it('does not call saveCompletion in dry-run mode', async () => {
+    render(
+      <WordleScreen route={mockRouteDryRun as never} navigation={mockNavigation as never} />,
+    );
+    await waitFor(() => screen.getByTestId('key-R'));
+    pressWord('RURAL');
+    fireEvent.press(screen.getByTestId('key-ENTER'));
+    await waitFor(() => screen.getByText('🎉'));
+    expect(mockSaveCompletion).not.toHaveBeenCalled();
   });
 
   it('can toggle hard mode off before first guess', async () => {

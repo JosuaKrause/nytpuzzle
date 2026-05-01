@@ -14,6 +14,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const NYT_S = Constants.expoConfig?.extra?.nytS as string | undefined;
 const NYT_A = Constants.expoConfig?.extra?.nytA as string | undefined;
+const DEV_DRY_RUN = Constants.expoConfig?.extra?.devDryRun === true;
 
 export default function App() {
   useEffect(() => {
@@ -24,7 +25,7 @@ export default function App() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Home">
-          {props => <HomeScreen {...props} nytS={NYT_S} nytA={NYT_A} />}
+          {props => <HomeScreen {...props} nytS={NYT_S} nytA={NYT_A} dryRun={DEV_DRY_RUN} />}
         </Stack.Screen>
         <Stack.Screen name="Wordle" component={WordleScreen} />
         <Stack.Screen name="Connections" component={ConnectionsScreen} />

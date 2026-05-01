@@ -1,7 +1,7 @@
 export type RootStackParamList = {
   Home: undefined;
-  Wordle: { date: string };
-  Connections: { date: string };
-  Strands: { date: string };
-  Mini: { date: string };
+  Wordle: { date: string; dryRun?: boolean };
+  Connections: { date: string; dryRun?: boolean };
+  Strands: { date: string; dryRun?: boolean };
+  Mini: { date: string; dryRun?: boolean };
 };

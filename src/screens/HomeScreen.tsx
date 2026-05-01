@@ -46,6 +46,7 @@ interface ScreenState {
 interface Props {
   nytS?: string;
   nytA?: string;
+  dryRun?: boolean;
 }
 
 function todayString(): string {
@@ -58,7 +59,7 @@ function offsetDate(from: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function HomeScreen({ nytS, nytA }: Props) {
+export function HomeScreen({ nytS, nytA, dryRun = false }: Props) {
   const today = todayString();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
@@ -141,6 +142,12 @@ export function HomeScreen({ nytS, nytA }: Props) {
         </Pressable>
       </View>
 
+      {dryRun ? (
+        <View style={styles.dryRunBanner} testID="dry-run-banner">
+          <Text style={styles.dryRunText}>DEV — results not saved</Text>
+        </View>
+      ) : null}
+
       {state.error ? <Text style={styles.error}>{state.error}</Text> : null}
 
       {GAMES.map(game => {
@@ -150,7 +157,7 @@ export function HomeScreen({ nytS, nytA }: Props) {
             key={game}
             style={styles.row}
             testID={`row-${game}`}
-            onPress={() => navigation.navigate(GAME_ROUTE[game] as 'Wordle', { date })}
+            onPress={() => navigation.navigate(GAME_ROUTE[game] as 'Wordle', { date, dryRun })}
           >
             <View style={styles.rowLeft}>
               <Text style={styles.gameName}>{GAME_LABEL[game]}</Text>
@@ -185,6 +192,8 @@ const styles = StyleSheet.create({
   arrow: { padding: 8 },
   arrowText: { fontSize: 28, fontWeight: '300', color: '#1D4ED8' },
   arrowDisabled: { color: '#D1D5DB' },
+  dryRunBanner: { marginBottom: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: '#FEF3C7', alignSelf: 'flex-start' },
+  dryRunText: { fontSize: 12, color: '#92400E', fontWeight: '600' },
   error: { color: '#F87171', marginBottom: 12 },
   row: {
     flexDirection: 'row',

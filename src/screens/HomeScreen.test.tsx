@@ -117,7 +117,26 @@ describe('HomeScreen', () => {
     render(<HomeScreen />);
     await waitFor(() => screen.getByTestId('row-wordle'));
     fireEvent.press(screen.getByTestId('row-wordle'));
-    expect(mockNavigate).toHaveBeenCalledWith('Wordle', { date: expect.any(String) });
+    expect(mockNavigate).toHaveBeenCalledWith('Wordle', { date: expect.any(String), dryRun: false });
+  });
+
+  it('shows dry-run banner when dryRun prop is true', async () => {
+    render(<HomeScreen dryRun />);
+    await waitFor(() => screen.getByTestId('dry-run-banner'));
+    expect(screen.getByText('DEV — results not saved')).toBeTruthy();
+  });
+
+  it('does not show dry-run banner when dryRun prop is false', async () => {
+    render(<HomeScreen />);
+    await waitFor(() => screen.getByTestId('row-wordle'));
+    expect(screen.queryByTestId('dry-run-banner')).toBeNull();
+  });
+
+  it('passes dryRun prop to navigation', async () => {
+    render(<HomeScreen dryRun />);
+    await waitFor(() => screen.getByTestId('row-wordle'));
+    fireEvent.press(screen.getByTestId('row-wordle'));
+    expect(mockNavigate).toHaveBeenCalledWith('Wordle', { date: expect.any(String), dryRun: true });
   });
 
   it('navigates to previous day and reloads when prev arrow is pressed', async () => {

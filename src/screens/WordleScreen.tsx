@@ -56,7 +56,7 @@ function initTilesFromLocked(locked: (string | null)[]): string[] {
 }
 
 export function WordleScreen({ route, navigation }: Props) {
-  const { date } = route.params;
+  const { date, dryRun = false } = route.params;
 
   const [state, setState] = useState<State>({
     puzzle: null,
@@ -122,7 +122,7 @@ export function WordleScreen({ route, navigation }: Props) {
         const newLocked = computeLockedPositions(newBoard, newColors);
         const newTiles = initTilesFromLocked(newLocked);
 
-        if (newStatus !== 'in_progress') {
+        if (newStatus !== 'in_progress' && !dryRun) {
           const gameData = {
             boardState: newBoard,
             currentRowIndex: nextRow,
@@ -187,24 +187,30 @@ export function WordleScreen({ route, navigation }: Props) {
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <Text style={styles.title}>Wordle — {date}</Text>
-        <Pressable
-          onPress={toggleHardMode}
-          testID="hard-mode-toggle"
-          disabled={state.currentRow > 0}
-        >
-          <Text style={[styles.hardLabel, state.hardMode && styles.hardOn]}>
-            {state.hardMode ? 'Hard ✓' : 'Hard'}
-          </Text>
-        </Pressable>
+        <View style={styles.headerRight}>
+          {dryRun ? <Text style={styles.dryRunLabel}>DRY RUN</Text> : null}
+          <Pressable
+            onPress={toggleHardMode}
+            testID="hard-mode-toggle"
+            disabled={state.currentRow > 0}
+          >
+            <Text style={[styles.hardLabel, state.hardMode && styles.hardOn]}>
+              {state.hardMode ? 'Hard ✓' : 'Hard'}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
-      {state.message ? (
-        <View style={styles.banner} testID="message">
-          <Text style={styles.bannerText}>{state.message}</Text>
-        </View>
-      ) : null}
+      <View style={styles.boardContainer}>
+        {state.message ? (
+          <View style={styles.bannerOverlay} testID="message" pointerEvents="none">
+            <View style={styles.banner}>
+              <Text style={styles.bannerText}>{state.message}</Text>
+            </View>
+          </View>
+        ) : null}
 
-      <View style={styles.board} testID="board">
+        <View style={styles.board} testID="board">
         {Array.from({ length: 6 }, (_, row) => {
           const submitted = row < state.currentRow;
           const isCurrent = row === state.currentRow;
@@ -240,6 +246,7 @@ export function WordleScreen({ route, navigation }: Props) {
             </View>
           );
         })}
+        </View>
       </View>
 
       <Keyboard keyColors={state.keyColors} onKey={handleKey} disabled={gameOver} />
@@ -251,10 +258,14 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#121213', paddingHorizontal: 8 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#121213' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   title: { color: '#fff', fontSize: 18, fontWeight: '700' },
   hardLabel: { color: '#818384', fontSize: 13 },
   hardOn: { color: '#538D4E' },
-  banner: { backgroundColor: '#fff', borderRadius: 4, alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6, marginBottom: 8 },
+  dryRunLabel: { color: '#FBBF24', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  boardContainer: { flex: 1 },
+  bannerOverlay: { position: 'absolute', top: 8, left: 0, right: 0, zIndex: 10, alignItems: 'center' },
+  banner: { backgroundColor: '#fff', borderRadius: 4, paddingHorizontal: 12, paddingVertical: 6 },
   bannerText: { color: '#121213', fontWeight: '700' },
   board: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5 },
   boardRow: { flexDirection: 'row', gap: 5 },
