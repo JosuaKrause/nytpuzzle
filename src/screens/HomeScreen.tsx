@@ -52,10 +52,17 @@ function todayString(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function offsetDate(from: string, days: number): string {
+  const d = new Date(from + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 export function HomeScreen({ nytS, nytA }: Props) {
   const today = todayString();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
+  const [date, setDate] = useState(today);
   const [state, setState] = useState<ScreenState>({
     loading: true,
     games: {},
@@ -64,10 +71,11 @@ export function HomeScreen({ nytS, nytA }: Props) {
   });
 
   const load = useCallback(async () => {
+    setState(s => ({ ...s, loading: true, error: null }));
     try {
       const [cached, statuses] = await Promise.all([
-        getCachedGames(today),
-        getCompletionStatuses(today),
+        getCachedGames(date),
+        getCompletionStatuses(date),
       ]);
       const games: Record<string, GameRow> = {};
       for (const game of GAMES) {
@@ -80,23 +88,31 @@ export function HomeScreen({ nytS, nytA }: Props) {
     } catch {
       setState(s => ({ ...s, loading: false, error: 'Failed to load puzzle status.' }));
     }
-  }, [today]);
+  }, [date]);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  const goToPrevDay = useCallback(() => {
+    setDate(d => offsetDate(d, -1));
+  }, []);
+
+  const goToNextDay = useCallback(() => {
+    setDate(d => offsetDate(d, 1));
+  }, []);
+
   const preload = useCallback(async () => {
     setState(s => ({ ...s, preloading: true, error: null }));
     try {
-      await prefetchDate(today, nytS, nytA);
+      await prefetchDate(date, nytS, nytA);
       await load();
     } catch {
       setState(s => ({ ...s, error: 'Preload failed.' }));
     } finally {
       setState(s => ({ ...s, preloading: false }));
     }
-  }, [today, nytS, nytA, load]);
+  }, [date, nytS, nytA, load]);
 
   if (state.loading) {
     return (
@@ -106,9 +122,24 @@ export function HomeScreen({ nytS, nytA }: Props) {
     );
   }
 
+  const atToday = date >= today;
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.heading}>NYT Puzzles — {today}</Text>
+      <View style={styles.dateRow}>
+        <Pressable onPress={goToPrevDay} testID="prev-day" style={styles.arrow}>
+          <Text style={styles.arrowText}>‹</Text>
+        </Pressable>
+        <Text style={styles.heading}>{date}</Text>
+        <Pressable
+          onPress={goToNextDay}
+          testID="next-day"
+          disabled={atToday}
+          style={styles.arrow}
+        >
+          <Text style={[styles.arrowText, atToday && styles.arrowDisabled]}>›</Text>
+        </Pressable>
+      </View>
 
       {state.error ? <Text style={styles.error}>{state.error}</Text> : null}
 
@@ -119,7 +150,7 @@ export function HomeScreen({ nytS, nytA }: Props) {
             key={game}
             style={styles.row}
             testID={`row-${game}`}
-            onPress={() => navigation.navigate(GAME_ROUTE[game] as 'Wordle', { date: today })}
+            onPress={() => navigation.navigate(GAME_ROUTE[game] as 'Wordle', { date })}
           >
             <View style={styles.rowLeft}>
               <Text style={styles.gameName}>{GAME_LABEL[game]}</Text>
@@ -139,7 +170,7 @@ export function HomeScreen({ nytS, nytA }: Props) {
         testID="preload-button"
       >
         <Text style={styles.buttonText}>
-          {state.preloading ? 'Loading…' : 'Preload Today'}
+          {state.preloading ? 'Loading…' : 'Preload'}
         </Text>
       </Pressable>
     </ScrollView>
@@ -149,7 +180,11 @@ export function HomeScreen({ nytS, nytA }: Props) {
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   container: { padding: 20 },
-  heading: { fontSize: 20, fontWeight: '700', marginBottom: 20 },
+  dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+  heading: { fontSize: 20, fontWeight: '700' },
+  arrow: { padding: 8 },
+  arrowText: { fontSize: 28, fontWeight: '300', color: '#1D4ED8' },
+  arrowDisabled: { color: '#D1D5DB' },
   error: { color: '#F87171', marginBottom: 12 },
   row: {
     flexDirection: 'row',

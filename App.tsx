@@ -1,6 +1,7 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
+import Constants from 'expo-constants';
 import { initDb } from './src/services/puzzleStore';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { WordleScreen } from './src/screens/WordleScreen';
@@ -11,8 +12,8 @@ import type { RootStackParamList } from './src/navigation/types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-const NYT_S = process.env.NYT_S;
-const NYT_A = process.env.NYT_A;
+const NYT_S = Constants.expoConfig?.extra?.nytS as string | undefined;
+const NYT_A = Constants.expoConfig?.extra?.nytA as string | undefined;
 
 export default function App() {
   useEffect(() => {

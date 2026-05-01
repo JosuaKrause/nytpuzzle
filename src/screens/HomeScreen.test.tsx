@@ -119,4 +119,37 @@ describe('HomeScreen', () => {
     fireEvent.press(screen.getByTestId('row-wordle'));
     expect(mockNavigate).toHaveBeenCalledWith('Wordle', { date: expect.any(String) });
   });
+
+  it('navigates to previous day and reloads when prev arrow is pressed', async () => {
+    render(<HomeScreen />);
+    await waitFor(() => screen.getByTestId('prev-day'));
+    fireEvent.press(screen.getByTestId('prev-day'));
+    await waitFor(() => expect(mockGetCachedGames).toHaveBeenCalledTimes(2));
+    // date shown is now one day earlier
+    const today = new Date().toISOString().slice(0, 10);
+    const d = new Date(today + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() - 1);
+    const yesterday = d.toISOString().slice(0, 10);
+    expect(screen.getByText(yesterday)).toBeTruthy();
+  });
+
+  it('does not advance past today when next arrow is pressed at today', async () => {
+    render(<HomeScreen />);
+    await waitFor(() => screen.getByTestId('next-day'));
+    const today = new Date().toISOString().slice(0, 10);
+    // next-day is disabled when already at today
+    fireEvent.press(screen.getByTestId('next-day'));
+    expect(screen.getByText(today)).toBeTruthy();
+  });
+
+  it('can navigate forward after going back', async () => {
+    render(<HomeScreen />);
+    await waitFor(() => screen.getByTestId('prev-day'));
+    fireEvent.press(screen.getByTestId('prev-day'));
+    await waitFor(() => expect(mockGetCachedGames).toHaveBeenCalledTimes(2));
+    fireEvent.press(screen.getByTestId('next-day'));
+    await waitFor(() => expect(mockGetCachedGames).toHaveBeenCalledTimes(3));
+    const today = new Date().toISOString().slice(0, 10);
+    expect(screen.getByText(today)).toBeTruthy();
+  });
 });
