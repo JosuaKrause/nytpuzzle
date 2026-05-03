@@ -1,4 +1,5 @@
-import { extractCards, checkGuess, maxSameCategory, swapInOrder, cardsToPayload } from './connections';
+import { extractCards, checkGuess, maxSameCategory, swapInOrder, cardsToPayload, findCardAt } from './connections';
+import type { CardLayout } from './connections';
 import type { ConnectionsCategory } from './nytClient';
 
 // 4 categories, each card's position interleaved so sort order differs from category order
@@ -88,6 +89,31 @@ describe('swapInOrder', () => {
     const order = [0, 1, 2, 3];
     swapInOrder(order, 0, 3);
     expect(order).toEqual([0, 1, 2, 3]);
+  });
+});
+
+describe('findCardAt', () => {
+  const layouts = new Map<number, CardLayout>([
+    [3, { x: 100, y: 200, width: 80, height: 60 }],
+    [7, { x: 200, y: 200, width: 80, height: 60 }],
+  ]);
+
+  it('returns the cardIdx when the point is inside a card', () => {
+    expect(findCardAt(140, 230, layouts)).toBe(3);
+  });
+
+  it('returns null when the point is outside all cards', () => {
+    expect(findCardAt(0, 0, layouts)).toBeNull();
+  });
+
+  it('returns null for an empty layouts map', () => {
+    expect(findCardAt(100, 200, new Map())).toBeNull();
+  });
+
+  it('respects exact boundary edges', () => {
+    expect(findCardAt(100, 200, layouts)).toBe(3);   // top-left corner
+    expect(findCardAt(180, 260, layouts)).toBe(3);   // bottom-right corner
+    expect(findCardAt(181, 200, layouts)).toBeNull(); // just outside right
   });
 });
 

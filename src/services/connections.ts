@@ -55,6 +55,22 @@ export function swapInOrder(order: number[], cardA: number, cardB: number): numb
   return next;
 }
 
+export interface CardLayout { x: number; y: number; width: number; height: number }
+
+// Returns the card index whose layout contains the point (px, py), or null.
+export function findCardAt(
+  px: number,
+  py: number,
+  layouts: Map<number, CardLayout>,
+): number | null {
+  for (const [cardIdx, m] of layouts) {
+    if (px >= m.x && px <= m.x + m.width && py >= m.y && py <= m.y + m.height) {
+      return cardIdx;
+    }
+  }
+  return null;
+}
+
 // Convert selected card indices to the payload shape used in game_data.
 export function cardsToPayload(
   selected: number[],

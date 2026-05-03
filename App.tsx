@@ -1,5 +1,6 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useEffect } from 'react';
 import Constants from 'expo-constants';
 import { initDb } from './src/services/puzzleStore';
@@ -22,16 +23,18 @@ export default function App() {
   }, []);
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Home">
-          {props => <HomeScreen {...props} nytS={NYT_S} nytA={NYT_A} dryRun={DEV_DRY_RUN} />}
-        </Stack.Screen>
-        <Stack.Screen name="Wordle" component={WordleScreen} />
-        <Stack.Screen name="Connections" component={ConnectionsScreen} />
-        <Stack.Screen name="Strands" component={StrandsScreen} />
-        <Stack.Screen name="Mini" component={MiniScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Home">
+            {props => <HomeScreen {...props} nytS={NYT_S} nytA={NYT_A} dryRun={DEV_DRY_RUN} />}
+          </Stack.Screen>
+          <Stack.Screen name="Wordle" component={WordleScreen} />
+          <Stack.Screen name="Connections" component={ConnectionsScreen} />
+          <Stack.Screen name="Strands" component={StrandsScreen} />
+          <Stack.Screen name="Mini" component={MiniScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </GestureHandlerRootView>
   );
 }

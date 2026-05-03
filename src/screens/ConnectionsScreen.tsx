@@ -1,17 +1,27 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Animated,
+  Dimensions,
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import type { ConnectionsPuzzle } from '../services/nytClient';
 import { getPuzzle, saveCompletion } from '../services/puzzleStore';
 import {
+  CardLayout,
   GameCard,
   RecordedGuess,
   RecordedSolvedCategory,
   cardsToPayload,
   checkGuess,
   extractCards,
+  findCardAt,
   maxSameCategory,
   swapInOrder,
 } from '../services/connections';
@@ -30,14 +40,12 @@ interface State {
   mistakes: number;
   status: GameStatus;
   message: string | null;
-  arrangeMode: boolean;
-  pickedUp: number | null;
 }
 
 const INITIAL: State = {
   puzzle: null, cards: [], boardOrder: [], selected: [],
   solvedLevels: [], solvedCats: [], guesses: [], mistakes: 0,
-  status: 'loading', message: null, arrangeMode: false, pickedUp: null,
+  status: 'loading', message: null,
 };
 
 const LEVEL_COLOR = ['#F9DF6D', '#A0C35A', '#B0C4EF', '#BA81C5'];
@@ -46,6 +54,61 @@ const MAX_MISTAKES = 4;
 export function ConnectionsScreen({ route, navigation }: Props) {
   const { date, dryRun = false } = route.params;
   const [state, setState] = useState<State>(INITIAL);
+
+  // Drag state ----------------------------------------------------------------
+  const cardLayouts = useRef<Map<number, CardLayout>>(new Map());
+  const cardViewRefs = useRef<Map<number, View>>(new Map());
+  const boardContainerRef = useRef<View>(null);
+  const boardOffset = useRef({ x: 0, y: 0 });
+  const ghostAnim = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const dragRef = useRef<{ cardIdx: number; startX: number; startY: number } | null>(null);
+  const [activeDrag, setActiveDrag] = useState<number | null>(null);
+  const [dropTarget, setDropTarget] = useState<number | null>(null);
+
+  const gridPan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: () => dragRef.current !== null,
+      onPanResponderMove: (evt, gs) => {
+        if (!dragRef.current) return;
+        ghostAnim.setValue({
+          x: dragRef.current.startX + gs.dx,
+          y: dragRef.current.startY + gs.dy,
+        });
+        const target = findCardAt(evt.nativeEvent.pageX, evt.nativeEvent.pageY, cardLayouts.current);
+        setDropTarget(target !== dragRef.current.cardIdx ? target : null);
+      },
+      onPanResponderRelease: (evt) => {
+        if (!dragRef.current) return;
+        const target = findCardAt(evt.nativeEvent.pageX, evt.nativeEvent.pageY, cardLayouts.current);
+        const srcIdx = dragRef.current.cardIdx;
+        if (target !== null && target !== srcIdx) {
+          setState(s => ({ ...s, boardOrder: swapInOrder(s.boardOrder, srcIdx, target) }));
+        }
+        dragRef.current = null;
+        setActiveDrag(null);
+        setDropTarget(null);
+      },
+      onPanResponderTerminate: () => {
+        dragRef.current = null;
+        setActiveDrag(null);
+        setDropTarget(null);
+      },
+    }),
+  ).current;
+
+  const startDrag = useCallback((cardIdx: number) => {
+    cardViewRefs.current.get(cardIdx)?.measure((_fx, _fy, _w, _h, px, py) => {
+      // Convert absolute screen coords to boardContainer-relative coords
+      const relX = px - boardOffset.current.x;
+      const relY = py - boardOffset.current.y;
+      dragRef.current = { cardIdx, startX: relX, startY: relY };
+      ghostAnim.setValue({ x: relX, y: relY });
+      setActiveDrag(cardIdx);
+    });
+  }, [ghostAnim]);
+
+  // ---------------------------------------------------------------------------
 
   useEffect(() => {
     getPuzzle<ConnectionsPuzzle>('connections', date).then(puzzle => {
@@ -59,12 +122,8 @@ export function ConnectionsScreen({ route, navigation }: Props) {
   }, [date]);
 
   const handleCardPress = useCallback((cardIdx: number) => {
+    if (activeDrag !== null) return;
     setState(s => {
-      if (s.arrangeMode) {
-        if (s.pickedUp === null) return { ...s, pickedUp: cardIdx };
-        if (s.pickedUp === cardIdx) return { ...s, pickedUp: null };
-        return { ...s, boardOrder: swapInOrder(s.boardOrder, s.pickedUp, cardIdx), pickedUp: null };
-      }
       if (s.selected.includes(cardIdx)) {
         return { ...s, selected: s.selected.filter(i => i !== cardIdx), message: null };
       }
@@ -73,7 +132,7 @@ export function ConnectionsScreen({ route, navigation }: Props) {
       }
       return s;
     });
-  }, []);
+  }, [activeDrag]);
 
   const handleSubmit = useCallback(() => {
     setState(s => {
@@ -131,10 +190,6 @@ export function ConnectionsScreen({ route, navigation }: Props) {
     setState(s => ({ ...s, selected: [], message: null }));
   }, []);
 
-  const handleArrangeToggle = useCallback(() => {
-    setState(s => ({ ...s, arrangeMode: !s.arrangeMode, selected: [], pickedUp: null }));
-  }, []);
-
   if (state.status === 'loading') {
     return (
       <SafeAreaView style={styles.center} testID="loading">
@@ -161,19 +216,19 @@ export function ConnectionsScreen({ route, navigation }: Props) {
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <Text style={styles.title}>Connections — {date}</Text>
-        <View style={styles.headerRight}>
-          {dryRun ? <Text style={styles.dryRunLabel}>DRY RUN</Text> : null}
-          {!gameOver ? (
-            <Pressable onPress={handleArrangeToggle} testID="arrange-toggle">
-              <Text style={[styles.arrangeLabel, state.arrangeMode && styles.arrangeOn]}>
-                {state.arrangeMode ? 'Done' : 'Arrange'}
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
+        {dryRun ? <Text style={styles.dryRunLabel}>DRY RUN</Text> : null}
       </View>
 
-      <View style={styles.boardContainer}>
+      <View
+        ref={boardContainerRef}
+        testID="board-container"
+        style={styles.boardContainer}
+        onLayout={() => {
+          boardContainerRef.current?.measure((_fx, _fy, _w, _h, px, py) => {
+            boardOffset.current = { x: px, y: py };
+          });
+        }}
+      >
         {state.message ? (
           <View style={styles.bannerOverlay} testID="message" pointerEvents="none">
             <View style={styles.banner}>
@@ -195,17 +250,37 @@ export function ConnectionsScreen({ route, navigation }: Props) {
           </View>
         ))}
 
-        <View style={styles.grid} testID="grid">
+        <View {...gridPan.panHandlers} style={styles.grid} testID="grid">
           {state.boardOrder.map(cardIdx => {
             const card = state.cards[cardIdx];
             const isSelected = state.selected.includes(cardIdx);
-            const isPickedUp = state.pickedUp === cardIdx;
+            const isBeingDragged = activeDrag === cardIdx;
+            const isDropTarget = dropTarget === cardIdx;
+
             return (
               <Pressable
                 key={cardIdx}
+                ref={el => {
+                  if (el) cardViewRefs.current.set(cardIdx, el as unknown as View);
+                  else cardViewRefs.current.delete(cardIdx);
+                }}
                 testID={`card-${cardIdx}`}
-                style={[styles.card, isSelected && styles.cardSelected, isPickedUp && styles.cardPickedUp]}
+                style={[
+                  styles.card,
+                  isSelected && styles.cardSelected,
+                  isBeingDragged && styles.cardDragging,
+                  isDropTarget && styles.cardDropTarget,
+                ]}
                 onPress={() => handleCardPress(cardIdx)}
+                onLongPress={() => startDrag(cardIdx)}
+                onLayout={e => {
+                  cardLayouts.current.set(cardIdx, {
+                    x: e.nativeEvent.layout.x,
+                    y: e.nativeEvent.layout.y,
+                    width: e.nativeEvent.layout.width,
+                    height: e.nativeEvent.layout.height,
+                  });
+                }}
               >
                 <Text style={[styles.cardText, isSelected && styles.cardTextSelected]}>
                   {card.content}
@@ -214,6 +289,19 @@ export function ConnectionsScreen({ route, navigation }: Props) {
             );
           })}
         </View>
+
+        {activeDrag !== null ? (
+          <Animated.View
+            testID="ghost-card"
+            pointerEvents="none"
+            style={[
+              styles.ghostCard,
+              { transform: [{ translateX: ghostAnim.x }, { translateY: ghostAnim.y }] },
+            ]}
+          >
+            <Text style={styles.ghostText}>{state.cards[activeDrag]?.content}</Text>
+          </Animated.View>
+        ) : null}
       </View>
 
       <View style={styles.footer}>
@@ -230,7 +318,7 @@ export function ConnectionsScreen({ route, navigation }: Props) {
           </View>
         </View>
 
-        {!gameOver && !state.arrangeMode ? (
+        {!gameOver ? (
           <View style={styles.controls}>
             <Pressable
               style={styles.btnSecondary}
@@ -255,17 +343,21 @@ export function ConnectionsScreen({ route, navigation }: Props) {
   );
 }
 
+// 4 cards per row with 3 gaps of 4px, inside 8px horizontal padding each side
+const GRID_H_PAD = 8;
+const CARD_GAP = 4;
+const CARD_WIDTH = Math.floor(
+  (Dimensions.get('window').width - GRID_H_PAD * 2 - CARD_GAP * 3) / 4,
+);
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#fff' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   centerText: { fontSize: 16, textAlign: 'center', paddingHorizontal: 20 },
   link: { color: '#1D4ED8', marginTop: 12, fontSize: 16 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   title: { fontSize: 16, fontWeight: '700' },
   dryRunLabel: { color: '#FBBF24', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
-  arrangeLabel: { fontSize: 13, color: '#6B7280' },
-  arrangeOn: { color: '#1D4ED8', fontWeight: '600' },
   boardContainer: { flex: 1 },
   bannerOverlay: { position: 'absolute', top: 8, left: 0, right: 0, zIndex: 10, alignItems: 'center' },
   banner: { backgroundColor: '#333', borderRadius: 6, paddingHorizontal: 14, paddingVertical: 8 },
@@ -273,12 +365,37 @@ const styles = StyleSheet.create({
   solvedRow: { marginHorizontal: 8, marginBottom: 4, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center' },
   solvedTitle: { fontWeight: '800', fontSize: 13, letterSpacing: 1 },
   solvedWords: { fontSize: 13, marginTop: 2 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 8, gap: 4 },
-  card: { width: '23.5%', aspectRatio: 1.1, backgroundColor: '#EFEFE6', borderRadius: 8, alignItems: 'center', justifyContent: 'center', padding: 4 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: GRID_H_PAD, gap: CARD_GAP },
+  card: {
+    width: CARD_WIDTH,
+    aspectRatio: 1.1,
+    backgroundColor: '#EFEFE6',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 4,
+  },
   cardSelected: { backgroundColor: '#5A594E' },
-  cardPickedUp: { backgroundColor: '#F59E0B' },
-  cardText: { fontSize: 11, fontWeight: '700', textAlign: 'center', color: '#1a1a1a' },
+  cardDragging: { opacity: 0.3 },
+  cardDropTarget: { borderWidth: 2, borderColor: '#1D4ED8' },
+  cardText: { fontSize: 11, fontWeight: '700', textAlign: 'center', color: '#1a1a1a', alignSelf: 'stretch' },
   cardTextSelected: { color: '#fff' },
+  ghostCard: {
+    position: 'absolute',
+    width: CARD_WIDTH,
+    height: Math.floor(CARD_WIDTH / 1.1),
+    backgroundColor: '#5A594E',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    zIndex: 100,
+  },
+  ghostText: { color: '#fff', fontSize: 11, fontWeight: '700', textAlign: 'center' },
   footer: { paddingHorizontal: 16, paddingBottom: 12 },
   mistakes: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   mistakesLabel: { fontSize: 13, color: '#6B7280' },

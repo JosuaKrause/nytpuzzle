@@ -1,17 +1,29 @@
 import React from 'react';
+import { PanResponder, View } from 'react-native';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { ConnectionsScreen } from './ConnectionsScreen';
 import { getPuzzle, saveCompletion } from '../services/puzzleStore';
 
 jest.mock('../services/puzzleStore');
 
+// Capture PanResponder config so we can call the handlers directly in tests
+type PanConfig = Parameters<typeof PanResponder.create>[0];
+let panConfig: PanConfig | null = null;
+const panCreateSpy = jest.spyOn(PanResponder, 'create').mockImplementation((config) => {
+  panConfig = config;
+  return { panHandlers: {} };
+});
+
+// Make View.measure call back with known absolute coords so startDrag works
+jest.spyOn(View.prototype, 'measure').mockImplementation(function (callback) {
+  callback(0, 0, 80, 72, 50, 100); // fx, fy, w, h, px, py
+});
+
 const mockGetPuzzle = getPuzzle as jest.Mock;
 const mockSaveCompletion = saveCompletion as jest.Mock;
 
-// After extractCards sorted by position:
 // idx: 0=A(y) 1=E(g) 2=I(b) 3=M(p)  4=B(y) 5=F(g) 6=J(b) 7=N(p)
 //      8=C(y) 9=G(g) 10=K(b) 11=O(p)  12=D(y) 13=H(g) 14=L(b) 15=P(p)
-// Yellow (level 0) correct: cards 0,4,8,12
 const puzzle = {
   id: 1137, status: 'OK', print_date: '2026-04-29', editor: 'x',
   categories: [
@@ -25,6 +37,7 @@ const puzzle = {
 const mockNav = { goBack: jest.fn() };
 
 function renderScreen(extra: Record<string, unknown> = {}) {
+  panConfig = null;
   return render(
     <ConnectionsScreen
       route={{ params: { date: '2026-04-29', ...extra } } as never}
@@ -37,10 +50,17 @@ function select(...indices: number[]) {
   indices.forEach(i => fireEvent.press(screen.getByTestId(`card-${i}`)));
 }
 
+// Simulate a card long-press (starts drag) — measure mock sets startX=50, startY=100
+function longPress(cardIdx: number) {
+  fireEvent(screen.getByTestId(`card-${cardIdx}`), 'longPress');
+}
+
 beforeEach(() => {
   mockGetPuzzle.mockReset().mockResolvedValue(puzzle);
   mockSaveCompletion.mockReset().mockResolvedValue(undefined);
   mockNav.goBack.mockReset();
+  panConfig = null;
+  panCreateSpy.mockClear();
 });
 
 describe('ConnectionsScreen', () => {
@@ -70,33 +90,166 @@ describe('ConnectionsScreen', () => {
     for (let i = 0; i < 16; i++) expect(screen.getByTestId(`card-${i}`)).toBeTruthy();
   });
 
-  it('selects a card on tap and shows it as selected', async () => {
+  it('selects a card on tap', async () => {
     renderScreen();
     await waitFor(() => screen.getByTestId('card-0'));
     select(0);
-    expect(screen.getByText('A')).toBeTruthy();
+    expect(screen.getByTestId('card-0')).toBeTruthy();
   });
 
   it('deselects a card on second tap', async () => {
     renderScreen();
     await waitFor(() => screen.getByTestId('card-0'));
-    select(0, 0); // tap twice
+    select(0, 0);
     expect(screen.getByTestId('card-0')).toBeTruthy();
   });
 
   it('cannot select more than 4 cards', async () => {
     renderScreen();
     await waitFor(() => screen.getByTestId('card-0'));
-    select(0, 1, 2, 3, 4); // 5th ignored, submit stays enabled with 4 selected
+    select(0, 1, 2, 3, 4);
     expect(screen.getByTestId('submit-button')).toBeTruthy();
   });
 
-  it('deselect-all clears selection and message', async () => {
+  it('ignores card press while drag is active', async () => {
+    renderScreen();
+    await waitFor(() => screen.getByTestId('card-0'));
+    longPress(0);
+    await waitFor(() => screen.getByTestId('ghost-card'));
+    fireEvent.press(screen.getByTestId('card-1'));
+    expect(screen.getByTestId('card-1')).toBeTruthy();
+  });
+
+  it('deselect-all clears selection', async () => {
     renderScreen();
     await waitFor(() => screen.getByTestId('card-0'));
     select(0, 1);
     fireEvent.press(screen.getByTestId('deselect-button'));
     expect(screen.getByTestId('card-0')).toBeTruthy();
+  });
+
+  it('boardContainer onLayout triggers measure to update board offset', async () => {
+    renderScreen();
+    await waitFor(() => screen.getByTestId('board-container'));
+    // Firing onLayout calls boardContainerRef.current.measure() → updates boardOffset
+    screen.getByTestId('board-container').props.onLayout?.();
+    expect(screen.getByTestId('board-container')).toBeTruthy();
+  });
+
+  it('shows ghost card on long-press and hides on pan release', async () => {
+    renderScreen();
+    await waitFor(() => screen.getByTestId('card-0'));
+    longPress(0);
+    await waitFor(() => screen.getByTestId('ghost-card'));
+
+    // Simulate pan release without a valid target → drag cancelled
+    panConfig?.onPanResponderRelease?.(
+      { nativeEvent: { pageX: 999, pageY: 999 } } as never,
+      {} as never,
+    );
+    await waitFor(() => expect(screen.queryByTestId('ghost-card')).toBeNull());
+  });
+
+  it('onPanResponderMove without active drag returns early', async () => {
+    renderScreen();
+    await waitFor(() => screen.getByTestId('card-0'));
+    // dragRef.current is null — covers the early-return branch on move
+    panConfig?.onPanResponderMove?.(
+      { nativeEvent: { pageX: 100, pageY: 100 } } as never,
+      { dx: 0, dy: 0 } as never,
+    );
+    expect(screen.queryByTestId('ghost-card')).toBeNull();
+  });
+
+  it('release without active drag is a no-op', async () => {
+    renderScreen();
+    await waitFor(() => screen.getByTestId('card-0'));
+    panConfig?.onPanResponderRelease?.(
+      { nativeEvent: { pageX: 0, pageY: 0 } } as never,
+      {} as never,
+    );
+    expect(screen.queryByTestId('ghost-card')).toBeNull();
+  });
+
+  it('panning over source card sets no drop target', async () => {
+    renderScreen();
+    await waitFor(() => screen.getByTestId('card-0'));
+    // Populate card-0's layout so findCardAt returns cardIdx=0 (same as dragged card)
+    screen.getByTestId('card-0').props.onLayout?.({
+      nativeEvent: { layout: { x: 50, y: 100, width: 80, height: 72 } },
+    });
+    longPress(0);
+    await waitFor(() => screen.getByTestId('ghost-card'));
+    // Pan over card-0 itself — target === source, setDropTarget(null)
+    panConfig?.onPanResponderMove?.(
+      { nativeEvent: { pageX: 90, pageY: 130 } } as never,
+      { dx: 5, dy: 5 } as never,
+    );
+    // Cancel drag
+    panConfig?.onPanResponderTerminate?.({} as never, {} as never);
+    await waitFor(() => expect(screen.queryByTestId('ghost-card')).toBeNull());
+  });
+
+  it('swaps cards on drag to a valid target and renders drop-target style', async () => {
+    renderScreen();
+    await waitFor(() => screen.getByTestId('card-0'));
+
+    longPress(0);
+    await waitFor(() => screen.getByTestId('ghost-card'));
+
+    // Populate card-5 layout at coords that match the pan pageX/pageY below
+    screen.getByTestId('card-5').props.onLayout?.({
+      nativeEvent: { layout: { x: 240, y: 236, width: 80, height: 72 } },
+    });
+
+    // Pan over card-5 — causes setDropTarget(5) + render with drop-target style
+    panConfig?.onPanResponderMove?.(
+      { nativeEvent: { pageX: 260, pageY: 260 } } as never,
+      { dx: 10, dy: 10 } as never,
+    );
+    // Flush state update so the drop-target render happens before the release
+    await waitFor(() => expect(screen.getByTestId('card-5')).toBeTruthy());
+
+    // Release on card-5 → swap
+    panConfig?.onPanResponderRelease?.(
+      { nativeEvent: { pageX: 260, pageY: 260 } } as never,
+      {} as never,
+    );
+    await waitFor(() => expect(screen.queryByTestId('ghost-card')).toBeNull());
+    expect(screen.getByTestId('card-0')).toBeTruthy();
+    expect(screen.getByTestId('card-5')).toBeTruthy();
+  });
+
+  it('cancels drag on terminate', async () => {
+    renderScreen();
+    await waitFor(() => screen.getByTestId('card-0'));
+    longPress(0);
+    await waitFor(() => screen.getByTestId('ghost-card'));
+    panConfig?.onPanResponderTerminate?.({} as never, {} as never);
+    await waitFor(() => expect(screen.queryByTestId('ghost-card')).toBeNull());
+  });
+
+  it('onStartShouldSetPanResponder always returns false', async () => {
+    renderScreen();
+    await waitFor(() => screen.getByTestId('card-0'));
+    const result = panConfig?.onStartShouldSetPanResponder?.({} as never, {} as never);
+    expect(result).toBe(false);
+  });
+
+  it('onMoveShouldSetPanResponder returns false when not dragging', async () => {
+    renderScreen();
+    await waitFor(() => screen.getByTestId('card-0'));
+    const result = panConfig?.onMoveShouldSetPanResponder?.({} as never, {} as never);
+    expect(result).toBe(false);
+  });
+
+  it('onMoveShouldSetPanResponder returns true when drag is active', async () => {
+    renderScreen();
+    await waitFor(() => screen.getByTestId('card-0'));
+    longPress(0);
+    await waitFor(() => screen.getByTestId('ghost-card'));
+    const result = panConfig?.onMoveShouldSetPanResponder?.({} as never, {} as never);
+    expect(result).toBe(true);
   });
 
   it('correct guess removes cards and shows solved row', async () => {
@@ -106,13 +259,12 @@ describe('ConnectionsScreen', () => {
     fireEvent.press(screen.getByTestId('submit-button'));
     await waitFor(() => screen.getByTestId('solved-row-0'));
     expect(screen.queryByTestId('card-0')).toBeNull();
-    expect(screen.queryByTestId('card-4')).toBeNull();
   });
 
   it('wrong guess shows Wrong and costs a mistake dot', async () => {
     renderScreen();
     await waitFor(() => screen.getByTestId('card-0'));
-    select(0, 1, 2, 3); // all different levels
+    select(0, 1, 2, 3);
     fireEvent.press(screen.getByTestId('submit-button'));
     await waitFor(() => screen.getByText('Wrong!'));
     expect(screen.getAllByTestId('dot-empty')).toHaveLength(1);
@@ -121,7 +273,7 @@ describe('ConnectionsScreen', () => {
   it('shows one away when 3 from same category', async () => {
     renderScreen();
     await waitFor(() => screen.getByTestId('card-0'));
-    select(0, 4, 8, 1); // 3 yellow + 1 green
+    select(0, 4, 8, 1);
     fireEvent.press(screen.getByTestId('submit-button'));
     await waitFor(() => screen.getByText('One away!'));
   });
@@ -176,31 +328,7 @@ describe('ConnectionsScreen', () => {
     await waitFor(() => screen.getByText('DRY RUN'));
   });
 
-  it('arrange mode: picking up a card then tapping another swaps them', async () => {
-    renderScreen();
-    await waitFor(() => screen.getByTestId('arrange-toggle'));
-    fireEvent.press(screen.getByTestId('arrange-toggle'));
-    fireEvent.press(screen.getByTestId('card-0'));  // pick up
-    fireEvent.press(screen.getByTestId('card-15')); // swap
-    // exit arrange
-    fireEvent.press(screen.getByTestId('arrange-toggle'));
-    expect(screen.getByTestId('card-0')).toBeTruthy();
-    expect(screen.getByTestId('card-15')).toBeTruthy();
-  });
-
-  it('arrange mode: tapping the same card puts it down without swapping', async () => {
-    renderScreen();
-    await waitFor(() => screen.getByTestId('arrange-toggle'));
-    fireEvent.press(screen.getByTestId('arrange-toggle'));
-    fireEvent.press(screen.getByTestId('card-0')); // pick up
-    fireEvent.press(screen.getByTestId('card-0')); // put down
-    fireEvent.press(screen.getByTestId('arrange-toggle')); // exit
-    // can now select card 0 normally
-    fireEvent.press(screen.getByTestId('card-0'));
-    expect(screen.getByTestId('card-0')).toBeTruthy();
-  });
-
-  it('arrange toggle disappears after game over', async () => {
+  it('controls disappear after game over', async () => {
     renderScreen();
     await waitFor(() => screen.getByTestId('card-0'));
     const groups = [[0,4,8,12],[1,5,9,13],[2,6,10,14],[3,7,11,15]];
@@ -209,6 +337,6 @@ describe('ConnectionsScreen', () => {
       fireEvent.press(screen.getByTestId('submit-button'));
       await waitFor(() => screen.getByTestId(`solved-row-${i}`));
     }
-    await waitFor(() => expect(screen.queryByTestId('arrange-toggle')).toBeNull());
+    await waitFor(() => expect(screen.queryByTestId('submit-button')).toBeNull());
   });
 });

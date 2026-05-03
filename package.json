@@ -22,6 +22,7 @@
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0"
   },
@@ -43,7 +44,9 @@
   "private": true,
   "jest": {
     "preset": "jest-expo",
-    "setupFilesAfterFramework": ["./jest.setup.ts"],
+    "setupFilesAfterFramework": [
+      "./jest.setup.ts"
+    ],
     "coverageThreshold": {
       "global": {
         "branches": 100,
@@ -55,6 +58,7 @@
     "coveragePathIgnorePatterns": [
       "/node_modules/",
       "/coverage/",
+      "/__mocks__/",
       "App.tsx",
       "index.ts",
       "src/navigation/types.ts"
