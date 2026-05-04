@@ -128,9 +128,13 @@ describe('ConnectionsScreen', () => {
     expect(screen.getByTestId('card-0')).toBeTruthy();
   });
 
-  it('ghost card uses card dimensions from measure() on drag start', async () => {
+  it('grid onLayout updates card width and ghost card tracks drag start position', async () => {
     renderScreen();
     await waitFor(() => screen.getByTestId('card-0'));
+    // Fire grid onLayout so gridWidth (and cardWidth) are updated from actual layout
+    screen.getByTestId('grid').props.onLayout?.({
+      nativeEvent: { layout: { width: 360, height: 200, x: 0, y: 0 } },
+    });
     // measure mock: (_fx, _fy, w=80, h=72, px=50, py=100)
     // startDrag stores w/h in ghostSize and uses px/py directly as screen coords
     longPress(0);

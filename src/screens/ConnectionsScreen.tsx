@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  Dimensions,
+  LayoutAnimation,
   PanResponder,
   Pressable,
   StyleSheet,
@@ -50,9 +52,22 @@ const INITIAL: State = {
 const LEVEL_COLOR = ['#F9DF6D', '#A0C35A', '#B0C4EF', '#BA81C5'];
 const MAX_MISTAKES = 4;
 
+const SHAKE = [
+  { toValue: -8, duration: 60 },
+  { toValue: 8,  duration: 60 },
+  { toValue: -8, duration: 60 },
+  { toValue: 8,  duration: 60 },
+  { toValue: 0,  duration: 60 },
+] as const;
+
 export function ConnectionsScreen({ route, navigation }: Props) {
   const { date, dryRun = false } = route.params;
   const [state, setState] = useState<State>(INITIAL);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  // Grid width measured via onLayout so cardWidth is always correct on device
+  const [gridWidth, setGridWidth] = useState(Dimensions.get('window').width);
 
   // Drag state ----------------------------------------------------------------
   const cardLayouts = useRef<Map<number, CardLayout>>(new Map());
@@ -62,6 +77,20 @@ export function ConnectionsScreen({ route, navigation }: Props) {
   const dragRef = useRef<{ cardIdx: number; startX: number; startY: number } | null>(null);
   const [activeDrag, setActiveDrag] = useState<number | null>(null);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
+
+  // Animation -----------------------------------------------------------------
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+
+  const runShake = useCallback(() => {
+    shakeAnim.setValue(0);
+    Animated.sequence(
+      SHAKE.map(({ toValue, duration }) =>
+        Animated.timing(shakeAnim, { toValue, duration, useNativeDriver: true }),
+      ),
+    ).start();
+  }, [shakeAnim]);
+
+  // ---------------------------------------------------------------------------
 
   const gridPan = useRef(
     PanResponder.create({
@@ -81,6 +110,7 @@ export function ConnectionsScreen({ route, navigation }: Props) {
         const target = findCardAt(evt.nativeEvent.pageX, evt.nativeEvent.pageY, cardLayouts.current);
         const srcIdx = dragRef.current.cardIdx;
         if (target !== null && target !== srcIdx) {
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
           setState(s => ({ ...s, boardOrder: swapInOrder(s.boardOrder, srcIdx, target) }));
         }
         dragRef.current = null;
@@ -131,56 +161,58 @@ export function ConnectionsScreen({ route, navigation }: Props) {
   }, [activeDrag]);
 
   const handleSubmit = useCallback(() => {
-    setState(s => {
-      const solvedLevel = checkGuess(s.selected, s.cards);
-      const payload = cardsToPayload(s.selected, s.cards);
+    const s = stateRef.current;
+    const solvedLevel = checkGuess(s.selected, s.cards);
+    const payload = cardsToPayload(s.selected, s.cards);
 
-      if (solvedLevel !== null) {
-        const newGuesses: RecordedGuess[] = [...s.guesses, { cards: payload, correct: true }];
-        const newSolvedCats: RecordedSolvedCategory[] = [
-          ...s.solvedCats,
-          { cards: payload, level: solvedLevel, orderSolved: s.solvedCats.length + 1 },
-        ];
-        const newSolvedLevels = [...s.solvedLevels, solvedLevel];
-        const newBoardOrder = s.boardOrder.filter(i => s.cards[i].level !== solvedLevel);
-        const won = newSolvedLevels.length === 4;
+    if (solvedLevel !== null) {
+      const newGuesses: RecordedGuess[] = [...s.guesses, { cards: payload, correct: true }];
+      const newSolvedCats: RecordedSolvedCategory[] = [
+        ...s.solvedCats,
+        { cards: payload, level: solvedLevel, orderSolved: s.solvedCats.length + 1 },
+      ];
+      const newSolvedLevels = [...s.solvedLevels, solvedLevel];
+      const newBoardOrder = s.boardOrder.filter(i => s.cards[i].level !== solvedLevel);
+      const won = newSolvedLevels.length === 4;
 
-        if (won && !dryRun) {
-          saveCompletion('connections', date, String(s.puzzle!.id), {
-            puzzleComplete: true, puzzleWon: true, mistakes: s.mistakes,
-            guesses: newGuesses, solvedCategories: newSolvedCats, isPlayingArchive: false,
-          });
-        }
-
-        return {
-          ...s, guesses: newGuesses, solvedCats: newSolvedCats,
-          solvedLevels: newSolvedLevels, boardOrder: newBoardOrder,
-          selected: [], status: won ? 'win' : 'in_progress',
-          message: won ? '🎉 Genius!' : null,
-        };
-      }
-
-      const oneAway = maxSameCategory(s.selected, s.cards) === 3;
-      const newMistakes = s.mistakes + 1;
-      const fail = newMistakes >= MAX_MISTAKES;
-      const newGuesses: RecordedGuess[] = [...s.guesses, { cards: payload, correct: false }];
-
-      if (fail && !dryRun) {
+      if (won && !dryRun) {
         saveCompletion('connections', date, String(s.puzzle!.id), {
-          puzzleComplete: true, puzzleWon: false, mistakes: newMistakes,
-          guesses: newGuesses, solvedCategories: s.solvedCats, isPlayingArchive: false,
+          puzzleComplete: true, puzzleWon: true, mistakes: s.mistakes,
+          guesses: newGuesses, solvedCategories: newSolvedCats, isPlayingArchive: false,
         });
       }
 
-      return {
-        ...s, guesses: newGuesses, mistakes: newMistakes, selected: [],
-        status: fail ? 'fail' : 'in_progress',
-        solvedLevels: fail ? [0, 1, 2, 3] : s.solvedLevels,
-        boardOrder: fail ? [] : s.boardOrder,
-        message: fail ? '😞 Better luck next time!' : oneAway ? 'One away!' : 'Wrong!',
-      };
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setState({
+        ...s, guesses: newGuesses, solvedCats: newSolvedCats,
+        solvedLevels: newSolvedLevels, boardOrder: newBoardOrder,
+        selected: [], status: won ? 'win' : 'in_progress',
+        message: won ? '🎉 Genius!' : null,
+      });
+      return;
+    }
+
+    const oneAway = maxSameCategory(s.selected, s.cards) === 3;
+    const newMistakes = s.mistakes + 1;
+    const fail = newMistakes >= MAX_MISTAKES;
+    const newGuesses: RecordedGuess[] = [...s.guesses, { cards: payload, correct: false }];
+
+    if (fail && !dryRun) {
+      saveCompletion('connections', date, String(s.puzzle!.id), {
+        puzzleComplete: true, puzzleWon: false, mistakes: newMistakes,
+        guesses: newGuesses, solvedCategories: s.solvedCats, isPlayingArchive: false,
+      });
+    }
+
+    setState({
+      ...s, guesses: newGuesses, mistakes: newMistakes, selected: [],
+      status: fail ? 'fail' : 'in_progress',
+      solvedLevels: fail ? [0, 1, 2, 3] : s.solvedLevels,
+      boardOrder: fail ? [] : s.boardOrder,
+      message: fail ? '😞 Better luck next time!' : oneAway ? 'One away!' : 'Wrong!',
     });
-  }, [date, dryRun]);
+    if (!fail) runShake();
+  }, [date, dryRun, runShake]);
 
   const handleDeselectAll = useCallback(() => {
     setState(s => ({ ...s, selected: [], message: null }));
@@ -207,11 +239,7 @@ export function ConnectionsScreen({ route, navigation }: Props) {
 
   const gameOver = state.status === 'win' || state.status === 'fail';
   const mistakesRemaining = MAX_MISTAKES - state.mistakes;
-
-  const rows: number[][] = [];
-  for (let i = 0; i < state.boardOrder.length; i += 4) {
-    rows.push(state.boardOrder.slice(i, i + 4));
-  }
+  const cardWidth = Math.floor((gridWidth - GRID_H_PAD * 2 - CARD_GAP * 3) / 4);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -242,46 +270,51 @@ export function ConnectionsScreen({ route, navigation }: Props) {
           </View>
         ))}
 
-        <View {...gridPan.panHandlers} style={styles.grid} testID="grid">
-          {rows.map((row, rowIdx) => (
-            <View key={rowIdx} style={styles.gridRow}>
-              {row.map(cardIdx => {
-                const card = state.cards[cardIdx];
-                const isSelected = state.selected.includes(cardIdx);
-                const isBeingDragged = activeDrag === cardIdx;
-                const isDropTarget = dropTarget === cardIdx;
+        {/* flexWrap keeps all cards in one parent so LayoutAnimation can track
+            them across reorders — explicit row Views would cause cross-parent
+            unmount/remount which LayoutAnimation cannot animate */}
+        <Animated.View
+          {...gridPan.panHandlers}
+          style={[styles.grid, { transform: [{ translateX: shakeAnim }] }]}
+          testID="grid"
+          onLayout={e => setGridWidth(e.nativeEvent.layout.width)}
+        >
+          {state.boardOrder.map(cardIdx => {
+            const card = state.cards[cardIdx];
+            const isSelected = state.selected.includes(cardIdx);
+            const isBeingDragged = activeDrag === cardIdx;
+            const isDropTarget = dropTarget === cardIdx;
 
-                return (
-                  <Pressable
-                    key={cardIdx}
-                    ref={el => {
-                      if (el) cardViewRefs.current.set(cardIdx, el as unknown as View);
-                      else cardViewRefs.current.delete(cardIdx);
-                    }}
-                    testID={`card-${cardIdx}`}
-                    style={[
-                      styles.card,
-                      isSelected && styles.cardSelected,
-                      isBeingDragged && styles.cardDragging,
-                      isDropTarget && styles.cardDropTarget,
-                    ]}
-                    onPress={() => handleCardPress(cardIdx)}
-                    onLongPress={() => startDrag(cardIdx)}
-                    onLayout={() => {
-                      cardViewRefs.current.get(cardIdx)?.measure((_fx, _fy, w, h, px, py) => {
-                        cardLayouts.current.set(cardIdx, { x: px, y: py, width: w, height: h });
-                      });
-                    }}
-                  >
-                    <Text style={[styles.cardText, isSelected && styles.cardTextSelected]}>
-                      {card.content}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ))}
-        </View>
+            return (
+              <Pressable
+                key={cardIdx}
+                ref={el => {
+                  if (el) cardViewRefs.current.set(cardIdx, el as unknown as View);
+                  else cardViewRefs.current.delete(cardIdx);
+                }}
+                testID={`card-${cardIdx}`}
+                style={[
+                  styles.card,
+                  { width: cardWidth },
+                  isSelected && styles.cardSelected,
+                  isBeingDragged && styles.cardDragging,
+                  isDropTarget && styles.cardDropTarget,
+                ]}
+                onPress={() => handleCardPress(cardIdx)}
+                onLongPress={() => startDrag(cardIdx)}
+                onLayout={() => {
+                  cardViewRefs.current.get(cardIdx)?.measure((_fx, _fy, w, h, px, py) => {
+                    cardLayouts.current.set(cardIdx, { x: px, y: py, width: w, height: h });
+                  });
+                }}
+              >
+                <Text style={[styles.cardText, isSelected && styles.cardTextSelected]}>
+                  {card.content}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </Animated.View>
       </View>
 
       {activeDrag !== null ? (
@@ -358,10 +391,8 @@ const styles = StyleSheet.create({
   solvedRow: { marginHorizontal: 8, marginBottom: 4, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center' },
   solvedTitle: { fontWeight: '800', fontSize: 13, letterSpacing: 1 },
   solvedWords: { fontSize: 13, marginTop: 2 },
-  grid: { paddingHorizontal: GRID_H_PAD, gap: CARD_GAP },
-  gridRow: { flexDirection: 'row', gap: CARD_GAP },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: GRID_H_PAD, gap: CARD_GAP },
   card: {
-    flex: 1,
     aspectRatio: 1.1,
     backgroundColor: '#EFEFE6',
     borderRadius: 8,

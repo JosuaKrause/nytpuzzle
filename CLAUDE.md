@@ -103,6 +103,13 @@ Set `DEV_DRY_RUN=true` in `.env`. Injected at build time via `app.config.js` →
 - Grid is 4 explicit `<View flexDirection="row">` rows of 4 cards (`flex: 1` per card) — avoids any width calculation.
 - On fail (4 mistakes): all remaining categories auto-reveal.
 
+### End-of-work-item checklist
+
+After completing any work item, update:
+- **PLAN.md** — add new known issues or planned work; remove stale descriptions. Before marking anything ✅, **ask the user to confirm the fix/feature is working as expected on device** — do not assume it is complete just because tests pass.
+- **CLAUDE.md** — update architecture/game notes if implementation details changed
+- **Memory** (`~/.claude/projects/.../memory/project_nyt_app.md`) — current state, resolved bugs, next work
+
 ### Coverage
 
 100% branch/function/line/statement coverage enforced in `jest.config` (inside `package.json`). `console.warn` throws in tests (configured in `jest.setup.ts`). Excluded from coverage: `App.tsx`, `index.ts`, `src/navigation/types.ts`. All other files under `src/` are automatically included.
