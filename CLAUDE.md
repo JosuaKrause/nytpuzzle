@@ -97,8 +97,10 @@ Set `DEV_DRY_RUN=true` in `.env`. Injected at build time via `app.config.js` →
 - Green pre-fill: confirmed correct positions auto-populate the next row's tiles; the user only types the remaining unknown letters. Locked tiles are amber-colored and immune to backspace.
 
 **Connections** (`src/services/connections.ts` + `src/screens/ConnectionsScreen.tsx`):
-- "Arrange mode" (tap "Arrange" button): pick up a card, tap another to swap. Lets the user group visual hypotheses without committing to a guess. Not available after game over.
-- One-away detection: shows "One away!" when 3/4 selected cards share a category.
+- Tap to select (max 4), submit to guess. "One away!" shown when 3/4 selected cards share a category.
+- **Drag-to-reorder** (PanResponder, no native deps): long-press a card to pick it up, drag to target, release to swap. Ghost card is rendered at the `SafeAreaView` root (outside `boardContainer`) so absolute screen coords from `measure()` align correctly.
+- Card `onLayout` calls `measure()` on the card's own ref to store absolute screen coords in `cardLayouts` — required for `findCardAt` to work correctly across all 4 grid rows (row-relative `layout.x/y` values would otherwise be wrong for rows 2–4).
+- Grid is 4 explicit `<View flexDirection="row">` rows of 4 cards (`flex: 1` per card) — avoids any width calculation.
 - On fail (4 mistakes): all remaining categories auto-reveal.
 
 ### Coverage

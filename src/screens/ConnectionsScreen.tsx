@@ -267,12 +267,9 @@ export function ConnectionsScreen({ route, navigation }: Props) {
                     ]}
                     onPress={() => handleCardPress(cardIdx)}
                     onLongPress={() => startDrag(cardIdx)}
-                    onLayout={e => {
-                      cardLayouts.current.set(cardIdx, {
-                        x: e.nativeEvent.layout.x,
-                        y: e.nativeEvent.layout.y,
-                        width: e.nativeEvent.layout.width,
-                        height: e.nativeEvent.layout.height,
+                    onLayout={() => {
+                      cardViewRefs.current.get(cardIdx)?.measure((_fx, _fy, w, h, px, py) => {
+                        cardLayouts.current.set(cardIdx, { x: px, y: py, width: w, height: h });
                       });
                     }}
                   >

@@ -23,7 +23,7 @@ src/
   screens/
     HomeScreen.tsx    # ✅ Date picker (‹/›), per-game cache + sync status, Preload button
     WordleScreen.tsx  # ✅ Full game — board, virtual keyboard, hard mode, green pre-fill
-    ConnectionsScreen.tsx  # ⚠️ Full game logic done, drag-and-drop has layout bugs (see below)
+    ConnectionsScreen.tsx  # ✅ Full game — drag-to-reorder (long-press), select/submit, one-away, fail reveal
     StrandsScreen.tsx      # 🚧 Stub
     MiniScreen.tsx         # 🚧 Stub
   components/
@@ -50,29 +50,62 @@ src/
 - **Green pre-fill**: confirmed correct positions auto-fill next row — only type unknowns
 - Banner floats over board (no layout shift)
 
-### Connections ✅ logic, ⚠️ layout bugs
+### Connections ✅
 - Tap to select (max 4), submit to guess; "One away!" feedback
-- **Drag-and-drop** (PanResponder, no native deps): long-press to pick up, drag, release to swap
-  - Cards rearranged without committing to a guess
-  - No separate "Arrange" mode button
+- **Drag-to-reorder** (PanResponder, no native deps): long-press to pick up, drag to target, release to swap
+  - Ghost card rendered at SafeAreaView root so absolute screen coords from `measure()` align directly
+  - `onLayout` on each card calls `measure()` to store absolute screen coords in `cardLayouts` — ensures `findCardAt` works correctly across all 4 grid rows
+  - Cards laid out as 4 explicit `<View flexDirection="row">` rows of 4 cards, each card `flex: 1` — eliminates any width calculation
+- Drop-target card highlighted (blue border) while dragging
 - On fail: all remaining categories auto-revealed
-- **BUG 1 — Grid renders 3 columns instead of 4**
-  - Tried `width: '23.5%' + margin: 2` — overflows (pct × 4 + margins > container)
-  - Tried `Dimensions.get('window').width` static calculation — still 3 cols on device
-  - Candidate fixes to try next:
-    - Use `onLayout` on the grid container to get actual width dynamically at runtime, compute card width from that (avoids `Dimensions` being wrong at startup)
-    - Render 4 explicit rows of 4 (nested Views: `flexDirection: 'row'` × 4) — sidesteps flexWrap entirely
-    - Use `flex: 1` on cards inside a row View
-- **BUG 2 — Ghost card appears in wrong position**
-  - Ghost is inside `boardContainer` which is NOT at screen origin (header above it)
-  - Using `pageX/pageY` from `measure()` (absolute screen coords) as the ghost position
-  - Tried subtracting `boardOffset` (boardContainer's measured screen position) — made it worse, suspect sign or timing issue
-  - Candidate fixes:
-    - Render ghost card at the **SafeAreaView root level** (outside boardContainer entirely) — absolute coords from `measure()` will then match directly since it's closer to screen root
-    - Use `useRef` for ghost position (not `Animated.ValueXY`) and `setNativeProps` to update without re-render
 
 ### Strands — 🚧 not yet implemented
 ### Mini crossword — 🚧 not yet implemented
+
+## Animations — 🚧 planned
+
+### Wordle
+
+**Tile flip (on row submit)**
+- One `Animated.Value` per tile column (5 total, reused per row). Range: −1 → 1.
+  - Phase 1 (−1 → 0, 150 ms): `scaleY` 1→0 (squash), color stays `pending`
+  - At midpoint (value crosses 0): color switches to final result via interpolation
+  - Phase 2 (0 → 1, 150 ms): `scaleY` 0→1 (unsquash), color stays final
+- Stagger: each tile starts 100 ms after the previous → total ~700 ms for 5 tiles
+- `useNativeDriver: false` (required for background-color interpolation)
+- Tile render: `Animated.View` for the row being flipped; regular `View` for all others
+
+**Pre-fill pop (after flip completes)**
+- After the flip sequence finishes, newly locked tiles in the next row pop in
+- `Animated.spring` on `scale` (0.5 → 1), `useNativeDriver: true`
+- Stagger matches the locked positions left-to-right
+
+**Shake (wrong guess / not-enough-letters / hard-mode violation)**
+- Applied to the current row's container
+- `translateX` oscillation: 0 → −8 → 8 → −8 → 8 → 0, five 60 ms steps
+- `useNativeDriver: true`
+- Triggered before the game-state update so the row being shaken is still the current row
+
+### Connections
+
+**Card movement (swap + correct-guess removal)**
+- `LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)` called before any `setState` that changes `boardOrder` (drag swap) or removes cards (correct guess)
+- Requires one-time call in `App.tsx`:
+  ```ts
+  if (Platform.OS === 'android') {
+    UIManager.setLayoutAnimationEnabledExperimental?.(true);
+  }
+  ```
+
+**Shake (wrong guess)**
+- One shared `Animated.Value` on the grid container's `translateX`
+- Same 5-step oscillation as Wordle (300 ms total)
+- Applied to the `<View testID="grid">` wrapper
+
+### Testing strategy
+- All animation `Animated.Value` refs hold constant values outside of active animations, so existing tests need no changes for non-animating paths
+- Tests that need animation callbacks to fire (e.g. flip midpoint, shake completion) use `jest.useFakeTimers()` + `jest.runAllTimers()` wrapped in `act()`
+- 100% coverage target is unchanged
 
 ## Dev / testing
 
@@ -82,10 +115,9 @@ src/
 
 ## Known issues / remaining work
 
-1. **Connections grid 3-col bug** — fix grid layout (see BUG 1 above)
-2. **Connections ghost offset bug** — fix ghost position (see BUG 2 above)
-3. **Strands** game implementation (grid word-finding UI; player draws lines through letters)
-4. **Mini crossword** implementation (5×5 grid; separate sync via `svc/crosswords/v6/game/{id}`)
-5. **Score sync trigger** — currently manual via `flush()`; needs a network-state listener (NetInfo)
-6. **`user_id` for sync** — not stored yet; needs to be fetched once from GET state and cached (returns in `states[].user_id` or top-level `user_id`)
-7. **Connections custom features** — user wants to add more UX improvements beyond drag-and-drop (e.g., visual grouping aids). Table until core bugs are fixed.
+1. **Animations** — Wordle flip + pre-fill + shake; Connections LayoutAnimation + shake (see above)
+2. **Strands** game implementation (grid word-finding UI; player draws lines through letters)
+3. **Mini crossword** implementation (5×5 grid; separate sync via `svc/crosswords/v6/game/{id}`)
+4. **Score sync trigger** — currently manual via `flush()`; needs a network-state listener (NetInfo)
+5. **`user_id` for sync** — not stored yet; needs to be fetched once from GET state and cached (returns in `states[].user_id` or top-level `user_id`)
+6. **Connections UX** — more visual grouping aids planned once animations are done

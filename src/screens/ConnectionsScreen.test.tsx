@@ -199,14 +199,13 @@ describe('ConnectionsScreen', () => {
     longPress(0);
     await waitFor(() => screen.getByTestId('ghost-card'));
 
-    // Populate card-5 layout at coords that match the pan pageX/pageY below
-    screen.getByTestId('card-5').props.onLayout?.({
-      nativeEvent: { layout: { x: 240, y: 236, width: 80, height: 72 } },
-    });
+    // onLayout calls measure() — mock returns (fx,fy,w=80,h=72,px=50,py=100) for all cards
+    // Only card-5 is registered here; findCardAt will return it for any point in [50,130]×[100,172]
+    screen.getByTestId('card-5').props.onLayout?.({} as never);
 
     // Pan over card-5 — causes setDropTarget(5) + render with drop-target style
     panConfig?.onPanResponderMove?.(
-      { nativeEvent: { pageX: 260, pageY: 260 } } as never,
+      { nativeEvent: { pageX: 90, pageY: 130 } } as never,
       { dx: 10, dy: 10 } as never,
     );
     // Flush state update so the drop-target render happens before the release
@@ -214,7 +213,7 @@ describe('ConnectionsScreen', () => {
 
     // Release on card-5 → swap
     panConfig?.onPanResponderRelease?.(
-      { nativeEvent: { pageX: 260, pageY: 260 } } as never,
+      { nativeEvent: { pageX: 90, pageY: 130 } } as never,
       {} as never,
     );
     await waitFor(() => expect(screen.queryByTestId('ghost-card')).toBeNull());
