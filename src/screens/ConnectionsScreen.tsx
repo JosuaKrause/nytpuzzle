@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
-  Dimensions,
   PanResponder,
   Pressable,
   StyleSheet,
@@ -58,9 +57,8 @@ export function ConnectionsScreen({ route, navigation }: Props) {
   // Drag state ----------------------------------------------------------------
   const cardLayouts = useRef<Map<number, CardLayout>>(new Map());
   const cardViewRefs = useRef<Map<number, View>>(new Map());
-  const boardContainerRef = useRef<View>(null);
-  const boardOffset = useRef({ x: 0, y: 0 });
   const ghostAnim = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const ghostSize = useRef({ width: 0, height: 0 });
   const dragRef = useRef<{ cardIdx: number; startX: number; startY: number } | null>(null);
   const [activeDrag, setActiveDrag] = useState<number | null>(null);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
@@ -98,12 +96,10 @@ export function ConnectionsScreen({ route, navigation }: Props) {
   ).current;
 
   const startDrag = useCallback((cardIdx: number) => {
-    cardViewRefs.current.get(cardIdx)?.measure((_fx, _fy, _w, _h, px, py) => {
-      // Convert absolute screen coords to boardContainer-relative coords
-      const relX = px - boardOffset.current.x;
-      const relY = py - boardOffset.current.y;
-      dragRef.current = { cardIdx, startX: relX, startY: relY };
-      ghostAnim.setValue({ x: relX, y: relY });
+    cardViewRefs.current.get(cardIdx)?.measure((_fx, _fy, w, h, px, py) => {
+      ghostSize.current = { width: w, height: h };
+      dragRef.current = { cardIdx, startX: px, startY: py };
+      ghostAnim.setValue({ x: px, y: py });
       setActiveDrag(cardIdx);
     });
   }, [ghostAnim]);
@@ -212,6 +208,11 @@ export function ConnectionsScreen({ route, navigation }: Props) {
   const gameOver = state.status === 'win' || state.status === 'fail';
   const mistakesRemaining = MAX_MISTAKES - state.mistakes;
 
+  const rows: number[][] = [];
+  for (let i = 0; i < state.boardOrder.length; i += 4) {
+    rows.push(state.boardOrder.slice(i, i + 4));
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
@@ -219,16 +220,7 @@ export function ConnectionsScreen({ route, navigation }: Props) {
         {dryRun ? <Text style={styles.dryRunLabel}>DRY RUN</Text> : null}
       </View>
 
-      <View
-        ref={boardContainerRef}
-        testID="board-container"
-        style={styles.boardContainer}
-        onLayout={() => {
-          boardContainerRef.current?.measure((_fx, _fy, _w, _h, px, py) => {
-            boardOffset.current = { x: px, y: py };
-          });
-        }}
-      >
+      <View testID="board-container" style={styles.boardContainer}>
         {state.message ? (
           <View style={styles.bannerOverlay} testID="message" pointerEvents="none">
             <View style={styles.banner}>
@@ -251,58 +243,66 @@ export function ConnectionsScreen({ route, navigation }: Props) {
         ))}
 
         <View {...gridPan.panHandlers} style={styles.grid} testID="grid">
-          {state.boardOrder.map(cardIdx => {
-            const card = state.cards[cardIdx];
-            const isSelected = state.selected.includes(cardIdx);
-            const isBeingDragged = activeDrag === cardIdx;
-            const isDropTarget = dropTarget === cardIdx;
+          {rows.map((row, rowIdx) => (
+            <View key={rowIdx} style={styles.gridRow}>
+              {row.map(cardIdx => {
+                const card = state.cards[cardIdx];
+                const isSelected = state.selected.includes(cardIdx);
+                const isBeingDragged = activeDrag === cardIdx;
+                const isDropTarget = dropTarget === cardIdx;
 
-            return (
-              <Pressable
-                key={cardIdx}
-                ref={el => {
-                  if (el) cardViewRefs.current.set(cardIdx, el as unknown as View);
-                  else cardViewRefs.current.delete(cardIdx);
-                }}
-                testID={`card-${cardIdx}`}
-                style={[
-                  styles.card,
-                  isSelected && styles.cardSelected,
-                  isBeingDragged && styles.cardDragging,
-                  isDropTarget && styles.cardDropTarget,
-                ]}
-                onPress={() => handleCardPress(cardIdx)}
-                onLongPress={() => startDrag(cardIdx)}
-                onLayout={e => {
-                  cardLayouts.current.set(cardIdx, {
-                    x: e.nativeEvent.layout.x,
-                    y: e.nativeEvent.layout.y,
-                    width: e.nativeEvent.layout.width,
-                    height: e.nativeEvent.layout.height,
-                  });
-                }}
-              >
-                <Text style={[styles.cardText, isSelected && styles.cardTextSelected]}>
-                  {card.content}
-                </Text>
-              </Pressable>
-            );
-          })}
+                return (
+                  <Pressable
+                    key={cardIdx}
+                    ref={el => {
+                      if (el) cardViewRefs.current.set(cardIdx, el as unknown as View);
+                      else cardViewRefs.current.delete(cardIdx);
+                    }}
+                    testID={`card-${cardIdx}`}
+                    style={[
+                      styles.card,
+                      isSelected && styles.cardSelected,
+                      isBeingDragged && styles.cardDragging,
+                      isDropTarget && styles.cardDropTarget,
+                    ]}
+                    onPress={() => handleCardPress(cardIdx)}
+                    onLongPress={() => startDrag(cardIdx)}
+                    onLayout={e => {
+                      cardLayouts.current.set(cardIdx, {
+                        x: e.nativeEvent.layout.x,
+                        y: e.nativeEvent.layout.y,
+                        width: e.nativeEvent.layout.width,
+                        height: e.nativeEvent.layout.height,
+                      });
+                    }}
+                  >
+                    <Text style={[styles.cardText, isSelected && styles.cardTextSelected]}>
+                      {card.content}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
         </View>
-
-        {activeDrag !== null ? (
-          <Animated.View
-            testID="ghost-card"
-            pointerEvents="none"
-            style={[
-              styles.ghostCard,
-              { transform: [{ translateX: ghostAnim.x }, { translateY: ghostAnim.y }] },
-            ]}
-          >
-            <Text style={styles.ghostText}>{state.cards[activeDrag]?.content}</Text>
-          </Animated.View>
-        ) : null}
       </View>
+
+      {activeDrag !== null ? (
+        <Animated.View
+          testID="ghost-card"
+          pointerEvents="none"
+          style={[
+            styles.ghostCard,
+            {
+              width: ghostSize.current.width,
+              height: ghostSize.current.height,
+              transform: [{ translateX: ghostAnim.x }, { translateY: ghostAnim.y }],
+            },
+          ]}
+        >
+          <Text style={styles.ghostText}>{state.cards[activeDrag]?.content}</Text>
+        </Animated.View>
+      ) : null}
 
       <View style={styles.footer}>
         <View style={styles.mistakes}>
@@ -343,12 +343,8 @@ export function ConnectionsScreen({ route, navigation }: Props) {
   );
 }
 
-// 4 cards per row with 3 gaps of 4px, inside 8px horizontal padding each side
 const GRID_H_PAD = 8;
 const CARD_GAP = 4;
-const CARD_WIDTH = Math.floor(
-  (Dimensions.get('window').width - GRID_H_PAD * 2 - CARD_GAP * 3) / 4,
-);
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#fff' },
@@ -365,9 +361,10 @@ const styles = StyleSheet.create({
   solvedRow: { marginHorizontal: 8, marginBottom: 4, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center' },
   solvedTitle: { fontWeight: '800', fontSize: 13, letterSpacing: 1 },
   solvedWords: { fontSize: 13, marginTop: 2 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: GRID_H_PAD, gap: CARD_GAP },
+  grid: { paddingHorizontal: GRID_H_PAD, gap: CARD_GAP },
+  gridRow: { flexDirection: 'row', gap: CARD_GAP },
   card: {
-    width: CARD_WIDTH,
+    flex: 1,
     aspectRatio: 1.1,
     backgroundColor: '#EFEFE6',
     borderRadius: 8,
@@ -382,8 +379,6 @@ const styles = StyleSheet.create({
   cardTextSelected: { color: '#fff' },
   ghostCard: {
     position: 'absolute',
-    width: CARD_WIDTH,
-    height: Math.floor(CARD_WIDTH / 1.1),
     backgroundColor: '#5A594E',
     borderRadius: 8,
     alignItems: 'center',

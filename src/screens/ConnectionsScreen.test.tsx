@@ -128,12 +128,14 @@ describe('ConnectionsScreen', () => {
     expect(screen.getByTestId('card-0')).toBeTruthy();
   });
 
-  it('boardContainer onLayout triggers measure to update board offset', async () => {
+  it('ghost card uses card dimensions from measure() on drag start', async () => {
     renderScreen();
-    await waitFor(() => screen.getByTestId('board-container'));
-    // Firing onLayout calls boardContainerRef.current.measure() → updates boardOffset
-    screen.getByTestId('board-container').props.onLayout?.();
-    expect(screen.getByTestId('board-container')).toBeTruthy();
+    await waitFor(() => screen.getByTestId('card-0'));
+    // measure mock: (_fx, _fy, w=80, h=72, px=50, py=100)
+    // startDrag stores w/h in ghostSize and uses px/py directly as screen coords
+    longPress(0);
+    await waitFor(() => screen.getByTestId('ghost-card'));
+    expect(screen.getByTestId('ghost-card')).toBeTruthy();
   });
 
   it('shows ghost card on long-press and hides on pan release', async () => {

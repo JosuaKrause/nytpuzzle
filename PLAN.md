@@ -17,13 +17,13 @@ src/
     syncQueue.ts      # ✅ flush() — POST pending completions to NYT (skips mini)
     preloader.ts      # ✅ prefetchDate/prefetchRange — parallel fetch + store
     wordle.ts         # ✅ Pure Wordle game logic (colors, hard mode, green pre-fill)
-    connections.ts    # ✅ Pure Connections game logic (guess check, one-away, swap)
+    connections.ts    # ✅ Pure Connections game logic (guess check, one-away, swap, findCardAt)
   navigation/
     types.ts          # ✅ RootStackParamList (Home, Wordle, Connections, Strands, Mini)
   screens/
     HomeScreen.tsx    # ✅ Date picker (‹/›), per-game cache + sync status, Preload button
     WordleScreen.tsx  # ✅ Full game — board, virtual keyboard, hard mode, green pre-fill
-    ConnectionsScreen.tsx  # ✅ Full game — card grid, arrange mode (drag-to-swap), one-away
+    ConnectionsScreen.tsx  # ⚠️ Full game logic done, drag-and-drop has layout bugs (see below)
     StrandsScreen.tsx      # 🚧 Stub
     MiniScreen.tsx         # 🚧 Stub
   components/
@@ -34,46 +34,58 @@ src/
 
 ## Service layer
 
-**`puzzleStore.ts`** — expo-sqlite tables:
-- `puzzles(game, date, data JSON, fetched_at)` — raw puzzle data keyed by `(game, date)`
+**`puzzleStore.ts`** — expo-sqlite v16 tables:
+- `puzzles(game, date, data JSON, fetched_at)` — raw puzzle data
 - `completions(game, date, puzzle_id, result JSON, completed_at, synced_at, sync_status)`
-- Internal game names: `wordle`, `connections`, `strands`, `mini`
+- Internal game names: `wordle`, `connections`, `strands`, `mini` (NOT `wordleV2`)
 
-**`syncQueue.ts`** — score sync flow:
-1. Game completion → `saveCompletion(game, date, puzzleId, gameData)`
-2. `flush(nytS, nytA, userId)` processes all `pending`/`failed` rows
-3. Maps `wordle` → `wordleV2` for the NYT API; skips `mini` (different endpoint)
-4. `POST /svc/games/state` → 201 → mark `synced`; error → mark `failed`, retry later
+**`syncQueue.ts`** — maps `wordle→wordleV2`, skips `mini`, returns `{synced, failed, skipped}`
 
-**`preloader.ts`** — `prefetchDate(date, nytS?, nytA?)` fetches all 4 games in parallel, stores each. Individual failures are isolated (partial success). `prefetchRange(startDate, days)` runs dates sequentially.
+**`preloader.ts`** — fetches all 4 games in parallel per date; individual failures isolated
 
 ## Gameplay details
 
 ### Wordle (`wordleV2`)
-- Hard mode enabled by default, toggleable before first guess
-- **Green pre-fill**: after each submission, confirmed correct positions auto-fill the next row — you only type the unknown letters
+- Hard mode default, toggleable before first guess
+- **Green pre-fill**: confirmed correct positions auto-fill next row — only type unknowns
 - Banner floats over board (no layout shift)
-- `game_data`: `{ boardState, currentRowIndex, hardMode, isPlayingArchive, status }`
 
-### Connections
-- Tap to select (max 4), submit to guess
-- **Arrange mode**: tap "Arrange" → tap card to pick up (amber) → tap another to swap positions → tap "Done". Visual groupings persist across the session.
-- Wrong guess shows "Wrong!" or "One away!" (3/4 correct)
-- On fail: all remaining categories revealed
-- `game_data`: `{ puzzleComplete, puzzleWon, mistakes, guesses, solvedCategories, isPlayingArchive }`
+### Connections ✅ logic, ⚠️ layout bugs
+- Tap to select (max 4), submit to guess; "One away!" feedback
+- **Drag-and-drop** (PanResponder, no native deps): long-press to pick up, drag, release to swap
+  - Cards rearranged without committing to a guess
+  - No separate "Arrange" mode button
+- On fail: all remaining categories auto-revealed
+- **BUG 1 — Grid renders 3 columns instead of 4**
+  - Tried `width: '23.5%' + margin: 2` — overflows (pct × 4 + margins > container)
+  - Tried `Dimensions.get('window').width` static calculation — still 3 cols on device
+  - Candidate fixes to try next:
+    - Use `onLayout` on the grid container to get actual width dynamically at runtime, compute card width from that (avoids `Dimensions` being wrong at startup)
+    - Render 4 explicit rows of 4 (nested Views: `flexDirection: 'row'` × 4) — sidesteps flexWrap entirely
+    - Use `flex: 1` on cards inside a row View
+- **BUG 2 — Ghost card appears in wrong position**
+  - Ghost is inside `boardContainer` which is NOT at screen origin (header above it)
+  - Using `pageX/pageY` from `measure()` (absolute screen coords) as the ghost position
+  - Tried subtracting `boardOffset` (boardContainer's measured screen position) — made it worse, suspect sign or timing issue
+  - Candidate fixes:
+    - Render ghost card at the **SafeAreaView root level** (outside boardContainer entirely) — absolute coords from `measure()` will then match directly since it's closer to screen root
+    - Use `useRef` for ghost position (not `Animated.ValueXY`) and `setNativeProps` to update without re-render
 
 ### Strands — 🚧 not yet implemented
 ### Mini crossword — 🚧 not yet implemented
 
 ## Dev / testing
 
-- **Dry-run mode**: set `DEV_DRY_RUN=true` in `.env`. App shows a yellow "DRY RUN" badge; no `saveCompletion` calls are made. Lets you replay already-solved puzzles without affecting NYT stats. Not accessible as an in-app toggle (would allow pre-solving to game the stats).
-- **Date navigation**: HomeScreen has ‹/› arrows. Navigate to any past date, preload, and play.
-- **Expo Go**: `npm start`, scan QR on device.
+- **Dry-run mode**: `DEV_DRY_RUN=true` in `.env` → yellow "DRY RUN" badge in game header; no `saveCompletion` calls. NOT an in-app toggle (cheat risk).
+- **Date navigation**: HomeScreen ‹/› arrows, navigate any past date, preload, play.
+- **Expo Go**: `npm start -- --clear` (--clear needed after package changes)
 
-## Open questions / remaining work
+## Known issues / remaining work
 
-- Strands game implementation (grid word-finding UI)
-- Mini crossword implementation (5×5 crossword UI, separate sync via `svc/crosswords/v6/game/{id}`)
-- Score sync trigger (currently manual via `flush()`; needs a network-state listener)
-- `user_id` for sync — currently not stored; needs to be fetched once from GET state and cached
+1. **Connections grid 3-col bug** — fix grid layout (see BUG 1 above)
+2. **Connections ghost offset bug** — fix ghost position (see BUG 2 above)
+3. **Strands** game implementation (grid word-finding UI; player draws lines through letters)
+4. **Mini crossword** implementation (5×5 grid; separate sync via `svc/crosswords/v6/game/{id}`)
+5. **Score sync trigger** — currently manual via `flush()`; needs a network-state listener (NetInfo)
+6. **`user_id` for sync** — not stored yet; needs to be fetched once from GET state and cached (returns in `states[].user_id` or top-level `user_id`)
+7. **Connections custom features** — user wants to add more UX improvements beyond drag-and-drop (e.g., visual grouping aids). Table until core bugs are fixed.
