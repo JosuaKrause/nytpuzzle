@@ -61,7 +61,7 @@ expo-sqlite v16 (async API). Two tables:
 
 ```sql
 puzzles(game TEXT, date TEXT, data TEXT, fetched_at INTEGER, PRIMARY KEY (game, date))
-completions(game TEXT, date TEXT, puzzle_id TEXT, result TEXT, completed_at INTEGER,
+completions(game TEXT, date TEXT, puzzle_id TEXT, result JSON, completed_at INTEGER,
             synced_at INTEGER, sync_status TEXT, PRIMARY KEY (game, date))
 ```
 
@@ -94,13 +94,23 @@ Set `DEV_DRY_RUN=true` in `.env`. Injected at build time via `app.config.js` →
 
 **Wordle** (`src/services/wordle.ts` + `src/screens/WordleScreen.tsx`):
 - Hard mode on by default; locked after first guess
-- Green pre-fill: confirmed correct positions auto-populate the next row's tiles; the user only types the remaining unknown letters. Locked tiles are amber-colored and immune to backspace.
+- **Green pre-fill**: confirmed correct positions auto-populate the next row; the user only types remaining unknowns. Locked tiles show as amber, immune to backspace.
+- **`stateRef` pattern**: `stateRef.current = state` kept up-to-date at each render. `handleKey` reads from `stateRef.current` for the ENTER path so it can compute animation setup and call `setState` directly (no functional updater needed for ENTER since state is always fresh at key-press time). Letter/backspace still use the functional updater `setState(s => ...)` to handle rapid presses safely.
+- **Animations**:
+  - *Flip*: `flipAnims` (5 `Animated.Value`s, scaleY). On submit, each column squashes (1→0), then `setRevealedCols` flips that column's boolean so the tile switches from `pending` to its real color, then unsquashes (0→1). Stagger: 100 ms/column. `useNativeDriver: true`.
+  - *Prefill pop*: `useEffect` on `state.locked` diffs against `prevLockedRef`; newly locked columns get `prefillAnims[col]` sprung from 0→1 (scale). `useNativeDriver: true`.
+  - *Shake*: `rowShakeAnim` (translateX) on the `shakingRow`. Fires **only on rejected input** (not-enough-letters, hard-mode violation) — **not** on valid wrong guesses. Cleared via `.start()` callback.
 
 **Connections** (`src/services/connections.ts` + `src/screens/ConnectionsScreen.tsx`):
 - Tap to select (max 4), submit to guess. "One away!" shown when 3/4 selected cards share a category.
-- **Drag-to-reorder** (PanResponder, no native deps): long-press a card to pick it up, drag to target, release to swap. Ghost card is rendered at the `SafeAreaView` root (outside `boardContainer`) so absolute screen coords from `measure()` align correctly.
-- Card `onLayout` calls `measure()` on the card's own ref to store absolute screen coords in `cardLayouts` — required for `findCardAt` to work correctly across all 4 grid rows (row-relative `layout.x/y` values would otherwise be wrong for rows 2–4).
-- Grid is 4 explicit `<View flexDirection="row">` rows of 4 cards (`flex: 1` per card) — avoids any width calculation.
+- **Drag-to-reorder** (PanResponder, no native deps): `delayLongPress={150}` on each card (down from the 500 ms default). Ghost card rendered at `SafeAreaView` root so `pageX/pageY` from `measure()` map directly to absolute screen coords.
+- **Card `onLayout`** calls `measure()` on the card's own ref to store absolute screen coords in `cardLayouts`. This is required because `findCardAt` receives `pageX/pageY` (screen-absolute); storing layout-relative coords would give wrong hit targets for rows 2–4.
+- **Grid layout**: `flexDirection: 'row', flexWrap: 'wrap'` with `onLayout`-measured `cardWidth`. All 16 cards are direct children of one `Animated.View`. This is a hard requirement for `LayoutAnimation` — if cards are in separate row `<View>`s, swaps cause cross-parent unmount/remount which LayoutAnimation cannot animate as a slide.
+- **`stateRef` pattern**: `handleSubmit` reads `stateRef.current` directly so it can call `LayoutAnimation.configureNext(...)` before `setState` (must happen in the same synchronous call, before the render that triggers the layout change).
+- **Animations**:
+  - *Card moves*: `LayoutAnimation.configureNext(easeInEaseOut)` before any `setState` that modifies `boardOrder` (drag swap, correct-guess removal).
+  - *Shake*: `shakeAnim` on grid `translateX`. Fires on non-fail wrong guesses only.
+  - Do **not** add `UIManager.setLayoutAnimationEnabledExperimental` — it is a no-op on the New Architecture and logs a warning.
 - On fail (4 mistakes): all remaining categories auto-reveal.
 
 ### End-of-work-item checklist
@@ -113,3 +123,5 @@ After completing any work item, update:
 ### Coverage
 
 100% branch/function/line/statement coverage enforced in `jest.config` (inside `package.json`). `console.warn` throws in tests (configured in `jest.setup.ts`). Excluded from coverage: `App.tsx`, `index.ts`, `src/navigation/types.ts`. All other files under `src/` are automatically included.
+
+**Animation coverage**: `jest.setup.ts` mocks `Animated.timing`, `.spring`, and `.delay` to execute synchronously (callbacks fire immediately). This allows all animation callbacks — including per-tile flip midpoints and shake completion — to be covered by existing test events without fake timers. Do not remove these mocks.

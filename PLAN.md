@@ -22,8 +22,8 @@ src/
     types.ts          # ✅ RootStackParamList (Home, Wordle, Connections, Strands, Mini)
   screens/
     HomeScreen.tsx    # ✅ Date picker (‹/›), per-game cache + sync status, Preload button
-    WordleScreen.tsx  # ✅ Full game — board, virtual keyboard, hard mode, green pre-fill
-    ConnectionsScreen.tsx  # ✅ Full game — drag-to-reorder (long-press), select/submit, one-away, fail reveal
+    WordleScreen.tsx  # ✅ Full game + animations (flip, prefill pop, shake on rejected input)
+    ConnectionsScreen.tsx  # ✅ Full game + animations (LayoutAnimation moves, shake on wrong)
     StrandsScreen.tsx      # 🚧 Stub
     MiniScreen.tsx         # 🚧 Stub
   components/
@@ -49,63 +49,52 @@ src/
 - Hard mode default, toggleable before first guess
 - **Green pre-fill**: confirmed correct positions auto-fill next row — only type unknowns
 - Banner floats over board (no layout shift)
+- **Animations**: tile flip on submit, prefill pop on new locked tiles, shake on rejected input
 
 ### Connections ✅
-- Tap to select (max 4), submit to guess; "One away!" feedback
-- **Drag-to-reorder** (PanResponder, no native deps): long-press to pick up, drag to target, release to swap
-  - Ghost card rendered at SafeAreaView root so absolute screen coords from `measure()` align directly
-  - `onLayout` on each card calls `measure()` to store absolute screen coords in `cardLayouts` — ensures `findCardAt` works correctly across all 4 grid rows
-  - Cards laid out as 4 explicit `<View flexDirection="row">` rows of 4 cards, each card `flex: 1` — eliminates any width calculation
-- Drop-target card highlighted (blue border) while dragging
+- Tap to select (max 4), submit to guess; "One away!" feedback when 3/4 cards share a category
+- **Drag-to-reorder**: long-press (150 ms delay) to pick up, drag to target, release to swap
+- Blue border highlights the drop target while dragging
+- **Animations**: LayoutAnimation slides cards to new positions on swap or correct-guess removal; grid shakes on wrong guess
 - On fail: all remaining categories auto-revealed
 
 ### Strands — 🚧 not yet implemented
 ### Mini crossword — 🚧 not yet implemented
 
-## Animations — 🚧 planned
+## Animations
 
 ### Wordle
 
-**Tile flip (on row submit)**
-- One `Animated.Value` per tile column (5 total, reused per row). Range: −1 → 1.
-  - Phase 1 (−1 → 0, 150 ms): `scaleY` 1→0 (squash), color stays `pending`
-  - At midpoint (value crosses 0): color switches to final result via interpolation
-  - Phase 2 (0 → 1, 150 ms): `scaleY` 0→1 (unsquash), color stays final
-- Stagger: each tile starts 100 ms after the previous → total ~700 ms for 5 tiles
-- `useNativeDriver: false` (required for background-color interpolation)
-- Tile render: `Animated.View` for the row being flipped; regular `View` for all others
+**Tile flip (on every row submit)**
+- 5 `Animated.Value`s (`flipAnims`, one per column), reused for each new row. Each goes 1 → 0 → 1 (scaleY).
+- Phase 1 (1→0, 150 ms): tile squashes. Color still shows `pending`.
+- Midpoint: `revealedCols[col]` flips to `true` in a `setRevealedCols` call inside the animation callback. The tile render switches from `pending` to the real `tileColors[row][col]`.
+- Phase 2 (0→1, 150 ms): tile unsquashes in the final color.
+- Stagger: 100 ms between columns → last tile completes at ~700 ms. `useNativeDriver: true` (only scaleY, no color interpolation needed — color switches via React state).
 
-**Pre-fill pop (after flip completes)**
-- After the flip sequence finishes, newly locked tiles in the next row pop in
-- `Animated.spring` on `scale` (0.5 → 1), `useNativeDriver: true`
-- Stagger matches the locked positions left-to-right
+**Prefill pop (on new locked tiles)**
+- `useEffect` on `state.locked` compares against `prevLockedRef` to find newly non-null positions.
+- Those positions get `prefillAnims[col]` reset to 0 then `Animated.spring` to 1 (scale).
+- `useNativeDriver: true`.
 
-**Shake (wrong guess / not-enough-letters / hard-mode violation)**
-- Applied to the current row's container
-- `translateX` oscillation: 0 → −8 → 8 → −8 → 8 → 0, five 60 ms steps
-- `useNativeDriver: true`
-- Triggered before the game-state update so the row being shaken is still the current row
+**Shake (rejected input only)**
+- `rowShakeAnim` (translateX) oscillates ±8 px over 5 × 60 ms steps on the current board row.
+- Fires on: not-enough-letters, hard-mode violation. **NOT on valid wrong guesses** — the flip is sufficient feedback.
+- `shakingRow` state tracks which row wraps the shake transform; cleared in the `.start()` callback.
 
 ### Connections
 
 **Card movement (swap + correct-guess removal)**
-- `LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)` called before any `setState` that changes `boardOrder` (drag swap) or removes cards (correct guess)
-- Requires one-time call in `App.tsx`:
-  ```ts
-  if (Platform.OS === 'android') {
-    UIManager.setLayoutAnimationEnabledExperimental?.(true);
-  }
-  ```
+- `LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)` called before every `setState` that changes `boardOrder`.
+- Cards must all live in **one flat parent** (`flexWrap: 'wrap'`) — if they're in separate row `<View>`s, React unmounts/remounts them across parents and LayoutAnimation cannot track the move.
+- Do **not** add `UIManager.setLayoutAnimationEnabledExperimental` — it's a no-op on the New Architecture and logs a warning.
 
 **Shake (wrong guess)**
-- One shared `Animated.Value` on the grid container's `translateX`
-- Same 5-step oscillation as Wordle (300 ms total)
-- Applied to the `<View testID="grid">` wrapper
+- `shakeAnim` on the grid `Animated.View`'s `translateX`. Same 5-step oscillation as Wordle.
+- Only fires on non-fail wrong guesses (fail state shows the reveal instead).
 
-### Testing strategy
-- All animation `Animated.Value` refs hold constant values outside of active animations, so existing tests need no changes for non-animating paths
-- Tests that need animation callbacks to fire (e.g. flip midpoint, shake completion) use `jest.useFakeTimers()` + `jest.runAllTimers()` wrapped in `act()`
-- 100% coverage target is unchanged
+### Testing
+- `jest.setup.ts` mocks `Animated.timing`, `.spring`, and `.delay` to run synchronously so all animation callbacks fire during normal test events — no fake timers needed, 100% coverage maintained.
 
 ## Dev / testing
 
@@ -115,9 +104,8 @@ src/
 
 ## Known issues / remaining work
 
-1. **Animations** — Wordle flip + pre-fill + shake; Connections LayoutAnimation + shake (see above)
-2. **Strands** game implementation (grid word-finding UI; player draws lines through letters)
-3. **Mini crossword** implementation (5×5 grid; separate sync via `svc/crosswords/v6/game/{id}`)
-4. **Score sync trigger** — currently manual via `flush()`; needs a network-state listener (NetInfo)
-5. **`user_id` for sync** — not stored yet; needs to be fetched once from GET state and cached (returns in `states[].user_id` or top-level `user_id`)
-6. **Connections UX** — more visual grouping aids planned once animations are done
+1. **Strands** game implementation (grid word-finding UI; player draws lines through letters)
+2. **Mini crossword** implementation (5×5 grid; separate sync via `svc/crosswords/v6/game/{id}`)
+3. **Score sync trigger** — currently manual via `flush()`; needs a network-state listener (NetInfo)
+4. **`user_id` for sync** — not stored yet; needs to be fetched once from GET state and cached
+5. **Connections UX** — more visual grouping aids planned (e.g. visual grouping hypotheses)

@@ -301,6 +301,7 @@ export function ConnectionsScreen({ route, navigation }: Props) {
                   isDropTarget && styles.cardDropTarget,
                 ]}
                 onPress={() => handleCardPress(cardIdx)}
+                delayLongPress={150}
                 onLongPress={() => startDrag(cardIdx)}
                 onLayout={() => {
                   cardViewRefs.current.get(cardIdx)?.measure((_fx, _fy, w, h, px, py) => {
