@@ -82,17 +82,16 @@ export function WordleScreen({ route, navigation }: Props) {
   // Animation refs ------------------------------------------------------------
   // scaleY for each column during row flip (1 = full, 0 = squashed)
   const flipAnims = useRef(Array.from({ length: 5 }, () => new Animated.Value(1))).current;
-  // scale for each locked tile's prefill pop (0 → 1)
-  const prefillAnims = useRef(Array.from({ length: 5 }, () => new Animated.Value(1))).current;
+  // scaleY for each locked tile's prefill flip-in animation
+  const prefillFlipAnims = useRef(Array.from({ length: 5 }, () => new Animated.Value(1))).current;
   // translateX for the shaking row
   const rowShakeAnim = useRef(new Animated.Value(0)).current;
 
   const [flippingRow, setFlippingRow] = useState<number | null>(null);
   const [revealedCols, setRevealedCols] = useState<boolean[]>([]);
   const [shakingRow, setShakingRow] = useState<number | null>(null);
-
-  // Track previous locked to detect new prefill positions
-  const prevLockedRef = useRef<(string | null)[]>([...EMPTY_LOCKED]);
+  const [prefillPending, setPrefillPending] = useState(false);
+  const [prefillRevealedCols, setPrefillRevealedCols] = useState<boolean[]>([]);
 
   // ---------------------------------------------------------------------------
 
@@ -106,21 +105,6 @@ export function WordleScreen({ route, navigation }: Props) {
     });
   }, [date]);
 
-  // Animate prefill pop whenever new locked positions appear
-  useEffect(() => {
-    const prev = prevLockedRef.current;
-    prevLockedRef.current = [...state.locked];
-    state.locked.forEach((l, col) => {
-      if (l !== null && prev[col] === null) {
-        prefillAnims[col].setValue(0);
-        Animated.spring(prefillAnims[col], {
-          toValue: 1,
-          useNativeDriver: true,
-        }).start();
-      }
-    });
-  }, [state.locked, prefillAnims]);
-
   const shakeRow = useCallback((row: number) => {
     setShakingRow(row);
     rowShakeAnim.setValue(0);
@@ -131,7 +115,7 @@ export function WordleScreen({ route, navigation }: Props) {
     ).start(() => setShakingRow(null));
   }, [rowShakeAnim]);
 
-  const startFlip = useCallback((row: number) => {
+  const startFlip = useCallback((row: number, newLocked: (string | null)[]) => {
     flipAnims.forEach(a => a.setValue(1));
     setFlippingRow(row);
     setRevealedCols([false, false, false, false, false]);
@@ -149,11 +133,38 @@ export function WordleScreen({ route, navigation }: Props) {
             if (done === 5) {
               setFlippingRow(null);
               setRevealedCols([]);
+
+              const lockedCols = newLocked
+                .map((l, i) => (l !== null ? i : -1))
+                .filter(i => i >= 0);
+
+              if (lockedCols.length === 0) {
+                setPrefillPending(false);
+              } else {
+                setPrefillRevealedCols([false, false, false, false, false]);
+                let prefillDone = 0;
+                lockedCols.forEach((c, idx) => {
+                  prefillFlipAnims[c].setValue(1);
+                  Animated.timing(prefillFlipAnims[c], {
+                    toValue: 0, duration: 150, delay: idx * 80, useNativeDriver: true,
+                  }).start(() => {
+                    setPrefillRevealedCols(prev => prev.map((v, i) => (i === c ? true : v)));
+                    Animated.timing(prefillFlipAnims[c], { toValue: 1, duration: 150, useNativeDriver: true })
+                      .start(() => {
+                        prefillDone += 1;
+                        if (prefillDone === lockedCols.length) {
+                          setPrefillPending(false);
+                          setPrefillRevealedCols([]);
+                        }
+                      });
+                  });
+                });
+              }
             }
           });
       });
     }
-  }, [flipAnims]);
+  }, [flipAnims, prefillFlipAnims]);
 
   const handleKey = useCallback((key: string) => {
     if (key === '⌫') {
@@ -213,8 +224,9 @@ export function WordleScreen({ route, navigation }: Props) {
     const won = colors.every(c => c === 'correct');
     const nextRow = s.currentRow + 1;
     const newStatus: GameStatus = won ? 'win' : nextRow >= 6 ? 'fail' : 'in_progress';
-    const newLocked = computeLockedPositions(newBoard, newColors);
-    const newTiles = initTilesFromLocked(newLocked);
+    // Only carry greens forward when the game continues — never prefill after win/fail
+    const newLocked = newStatus === 'in_progress' ? computeLockedPositions(newBoard, newColors) : [...EMPTY_LOCKED];
+    const newTiles = newStatus === 'in_progress' ? initTilesFromLocked(newLocked) : [...EMPTY_TILES];
 
     if (newStatus !== 'in_progress' && !dryRun) {
       saveCompletion('wordle', date, String(s.puzzle!.id), {
@@ -235,10 +247,11 @@ export function WordleScreen({ route, navigation }: Props) {
       currentRow: nextRow,
       status: newStatus,
       keyColors: newKeyColors,
-      message: won ? '🎉' : newStatus === 'fail' ? solution.toUpperCase() : null,
+      message: won ? `🎉 ${nextRow}/6` : newStatus === 'fail' ? solution.toUpperCase() : null,
     });
 
-    startFlip(s.currentRow);
+    if (newLocked.some(l => l !== null)) setPrefillPending(true);
+    startFlip(s.currentRow, newLocked);
   }, [date, dryRun, shakeRow, startFlip]);
 
   const toggleHardMode = useCallback(() => {
@@ -318,21 +331,28 @@ export function WordleScreen({ route, navigation }: Props) {
                   const letter = tiles[col];
                   const isLocked = isCurrent && state.locked[col] !== null;
                   const isRevealed = isFlipping && revealedCols[col];
+                  const isPrefillRevealed = prefillRevealedCols[col] ?? false;
+
+                  // While prefillPending and before midpoint: show empty cell
+                  const displayLetter =
+                    isLocked && prefillPending && !isPrefillRevealed ? '' : letter;
 
                   const tileState: TileState =
                     isFlipping && !isRevealed
                       ? 'pending'
                       : submitted
                       ? state.tileColors[row][col]
-                      : letter
-                      ? isLocked ? 'correct' : 'pending'
-                      : 'empty';
+                      : !displayLetter
+                      ? 'empty'
+                      : isLocked && (!prefillPending || isPrefillRevealed)
+                      ? 'correct'
+                      : 'pending';
 
                   const tileTransform =
                     isFlipping
                       ? [{ scaleY: flipAnims[col] }]
-                      : isCurrent && isLocked
-                      ? [{ scale: prefillAnims[col] }]
+                      : isLocked && prefillPending
+                      ? [{ scaleY: prefillFlipAnims[col] }]
                       : undefined;
 
                   return (
@@ -345,7 +365,7 @@ export function WordleScreen({ route, navigation }: Props) {
                       ]}
                       testID={`tile-${row}-${col}`}
                     >
-                      <Text style={styles.tileLetter}>{letter.toUpperCase()}</Text>
+                      <Text style={styles.tileLetter}>{displayLetter.toUpperCase()}</Text>
                     </Animated.View>
                   );
                 })}

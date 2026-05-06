@@ -109,7 +109,7 @@ describe('WordleScreen', () => {
     await waitFor(() => screen.getByTestId('key-R'));
     pressWord('RURAL');
     fireEvent.press(screen.getByTestId('key-ENTER'));
-    await waitFor(() => screen.getByText('🎉'));
+    await waitFor(() => screen.getByText('🎉 1/6'));
     expect(mockSaveCompletion).toHaveBeenCalledWith(
       'wordle', '2026-04-29', '1775',
       expect.objectContaining({ status: 'WIN' }),
@@ -138,9 +138,9 @@ describe('WordleScreen', () => {
     await waitFor(() => screen.getByTestId('key-R'));
     pressWord('RURAL');
     fireEvent.press(screen.getByTestId('key-ENTER'));
-    await waitFor(() => screen.getByText('🎉'));
+    await waitFor(() => screen.getByText('🎉 1/6'));
     fireEvent.press(screen.getByTestId('key-C'));
-    expect(screen.getByText('🎉')).toBeTruthy();
+    expect(screen.getByText('🎉 1/6')).toBeTruthy();
   });
 
   it('hard mode rejects guess missing a present letter', async () => {
@@ -168,7 +168,7 @@ describe('WordleScreen', () => {
     // Typing 4 more letters fills free slots 1,2,3,4 → RURAL = win
     pressWord('URAL');
     fireEvent.press(screen.getByTestId('key-ENTER'));
-    await waitFor(() => screen.getByText('🎉'));
+    await waitFor(() => screen.getByText('🎉 2/6'));
   });
 
   it('backspace does not clear a locked pre-filled position', async () => {
@@ -204,7 +204,7 @@ describe('WordleScreen', () => {
     await waitFor(() => screen.getByTestId('key-R'));
     pressWord('RURAL');
     fireEvent.press(screen.getByTestId('key-ENTER'));
-    await waitFor(() => screen.getByText('🎉'));
+    await waitFor(() => screen.getByText('🎉 1/6'));
     expect(mockSaveCompletion).not.toHaveBeenCalled();
   });
 
