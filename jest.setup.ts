@@ -4,29 +4,30 @@ console.warn = (...args: unknown[]) => {
   throw new Error(`console.warn: ${String(args[0])}`);
 };
 
-// Make all Animated primitives run synchronously so animation callbacks are
-// exercised by normal test events and 100% coverage is preserved.
-// Animated.sequence defers its outer callback asynchronously in the New
-// Architecture even when its children are synchronous, so it must be mocked too.
+// Animation mocks: values are set immediately (so refs are correct), but
+// callbacks are deferred via Promise so React renders intermediate animation
+// states between steps — required for animation-branch coverage.
 import { Animated } from 'react-native';
 
-const syncAnim = (value: Animated.Value, config: { toValue: number }) => ({
+const asyncAnim = (value: Animated.Value, config: { toValue: number }) => ({
   start: (cb?: (r: { finished: boolean }) => void) => {
     value?.setValue(config?.toValue);
-    cb?.({ finished: true });
+    if (cb) Promise.resolve().then(() => cb({ finished: true }));
   },
 });
-const syncDelay = () => ({
-  start: (cb?: (r: { finished: boolean }) => void) => cb?.({ finished: true }),
+const asyncDelay = () => ({
+  start: (cb?: (r: { finished: boolean }) => void) => {
+    if (cb) Promise.resolve().then(() => cb({ finished: true }));
+  },
 });
-const syncSequence = (animations: Array<{ start: (cb?: (r: { finished: boolean }) => void) => void }>) => ({
+const asyncSequence = (animations: Array<{ start: (cb?: (r: { finished: boolean }) => void) => void }>) => ({
   start: (cb?: (r: { finished: boolean }) => void) => {
     animations.forEach(a => a.start());
-    cb?.({ finished: true });
+    if (cb) Promise.resolve().then(() => cb({ finished: true }));
   },
 });
 
-jest.spyOn(Animated, 'timing').mockImplementation(syncAnim as never);
-jest.spyOn(Animated, 'spring').mockImplementation(syncAnim as never);
-jest.spyOn(Animated, 'delay').mockImplementation(syncDelay as never);
-jest.spyOn(Animated, 'sequence').mockImplementation(syncSequence as never);
+jest.spyOn(Animated, 'timing').mockImplementation(asyncAnim as never);
+jest.spyOn(Animated, 'spring').mockImplementation(asyncAnim as never);
+jest.spyOn(Animated, 'delay').mockImplementation(asyncDelay as never);
+jest.spyOn(Animated, 'sequence').mockImplementation(asyncSequence as never);

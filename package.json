@@ -44,7 +44,7 @@
   "private": true,
   "jest": {
     "preset": "jest-expo",
-    "setupFilesAfterFramework": [
+    "setupFilesAfterEnv": [
       "./jest.setup.ts"
     ],
     "coverageThreshold": {

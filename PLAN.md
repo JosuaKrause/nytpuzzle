@@ -94,7 +94,8 @@ src/
 - Only fires on non-fail wrong guesses (fail state shows the reveal instead).
 
 ### Testing
-- `jest.setup.ts` mocks `Animated.timing`, `.spring`, `.delay`, and `.sequence` to run synchronously. Despite this, callbacks nested 4+ levels deep inside the main flip animation still don't complete within `act()` scope in the New Architecture test environment — see bug 2 above.
+- `jest.setup.ts` mocks `Animated.timing`, `.spring`, `.delay`, and `.sequence`. Callbacks are **Promise-deferred** (values set immediately, callbacks via `Promise.resolve().then(...)`) so React renders intermediate animation states between callback batches, enabling animation-branch coverage. The jest config key is `setupFilesAfterEnv` — `setupFilesAfterFramework` is silently ignored.
+- Two Wordle tests use a per-test `Animated.timing` override to capture specific callbacks and control when they fire (see `'covers isPrefillRevealed branch'` and `'covers prefillDone !== lockedCols.length'`).
 
 ## Dev / testing
 
@@ -105,11 +106,7 @@ src/
 ## Known issues / remaining work
 
 ### Active bugs
-1. **Connections card text empty** — Cards render but content may be invisible or the puzzle data didn't load for today's date. Needs investigation: either a data/caching issue or the API response schema changed.
-2. **Wordle prefill animation coverage gap** — The prefill animation itself (locked tiles flip in after the main row flip with the same scaleY motion) is implemented and correct on device, but **coverage is failing** at 98.67% stmts / 94.49% branch / 94.73% fn. Lines 151–155 (prefill flip callbacks inside `done===5`) and line 347 (tile tileState `'correct'` branch while prefill is pending) are uncovered in tests. Root cause: animation callbacks nested 4+ levels deep inside `Animated.sequence.start()` callbacks are deferred asynchronously by React Native's New Architecture scheduler even when `Animated.timing`, `.spring`, `.delay`, and `.sequence` are all mocked to run synchronously in `jest.setup.ts`. The mocked outer sequence callback fires, but the timing callbacks chained inside it do not complete within the test's `act()` scope before the test ends. Options to resolve:
-   - Restructure `startFlip` to avoid deeply nested animation callback chains (e.g. use `Animated.parallel` for all 5 columns' phase-1, then a single callback to start phase-2)
-   - Drive the prefill animation from a `useEffect` triggered by a state flag, so it runs at the React commit level rather than inside an animation callback
-   - Use `jest.useFakeTimers()` + `jest.runAllTimers()` in affected tests to advance all deferred callbacks
+1. **Connections image puzzles** — Connections puzzle on 2026-05-06 (and similar dates) has empty cells because it's an image-based puzzle (cells contain images, not text). The current `ConnectionsScreen` only renders `card.label` (text). Need to inspect the raw API JSON for image puzzle schema to know what field carries the image URL/asset.
 
 ### Remaining features
 5. **Strands** game implementation (grid word-finding UI; player draws lines through letters)

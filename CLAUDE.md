@@ -124,4 +124,8 @@ After completing any work item, update:
 
 100% branch/function/line/statement coverage enforced in `jest.config` (inside `package.json`). `console.warn` throws in tests (configured in `jest.setup.ts`). Excluded from coverage: `App.tsx`, `index.ts`, `src/navigation/types.ts`. All other files under `src/` are automatically included.
 
-**Animation coverage**: `jest.setup.ts` mocks `Animated.timing`, `.spring`, and `.delay` to execute synchronously (callbacks fire immediately). This allows all animation callbacks — including per-tile flip midpoints and shake completion — to be covered by existing test events without fake timers. Do not remove these mocks.
+**Animation coverage**: `jest.setup.ts` mocks `Animated.timing`, `.spring`, `.delay`, and `.sequence`. Callbacks are **Promise-deferred** (not synchronous) so React renders intermediate animation states within `act()` flushes, allowing animation branches to be covered. Values are set immediately (via `setValue`) so AnimatedValue refs remain correct. The jest config key is `setupFilesAfterEnv` (not `setupFilesAfterFramework` — that key is silently ignored by Jest).
+
+Two Wordle animation branches need dedicated tests because their intermediate states resolve within a single microtask batch:
+- **`prefillDone !== lockedCols.length`** (line 155 false branch): tested with REGAL→RURAL (3 locked cols).
+- **`isPrefillRevealed` in `!prefillPending || isPrefillRevealed`** (line 347): tested with a per-test mock override that captures the prefill flip-back callback, letting React render with `prefillPending=true, isPrefillRevealed=true` before the callback fires.

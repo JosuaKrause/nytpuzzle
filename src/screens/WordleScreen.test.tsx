@@ -1,5 +1,6 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react-native';
+import { Animated } from 'react-native';
 import { WordleScreen } from './WordleScreen';
 import { getPuzzle, saveCompletion } from '../services/puzzleStore';
 
@@ -224,5 +225,58 @@ describe('WordleScreen', () => {
     const toggle = screen.getByTestId('hard-mode-toggle');
     fireEvent.press(toggle);
     expect(screen.getByText('Hard ✓')).toBeTruthy();
+  });
+
+  it('covers prefillDone !== lockedCols.length branch with multiple locked positions', async () => {
+    // REGAL vs RURAL: R(0), A(3), L(4) correct → lockedCols=[0,3,4] (length 3)
+    // forEach iterates 3×: prefillDone=1≠3 (false branch), 2≠3 (false), 3=3 (true)
+    renderScreen();
+    await waitFor(() => screen.getByTestId('key-R'));
+    pressWord('REGAL');
+    fireEvent.press(screen.getByTestId('key-ENTER'));
+    await waitFor(() => screen.getByTestId('board-row-1'));
+  });
+
+  it('covers isPrefillRevealed branch in tile state', async () => {
+    // Defer toValue=1 callbacks so React renders the intermediate prefill state
+    // (prefillPending=true, isPrefillRevealed=true) before prefillInnerCb clears it.
+    let capturedCb: ((r: { finished: boolean }) => void) | null = null;
+    let toValue1Count = 0;
+    const timingMock = jest.mocked(Animated.timing);
+    const savedImpl = timingMock.getMockImplementation()!;
+
+    timingMock.mockImplementation((value: any, config: any) => ({
+      start: (cb?: any) => {
+        value?.setValue(config?.toValue);
+        if (!cb) return;
+        if (config?.toValue === 1) {
+          toValue1Count++;
+          if (toValue1Count <= 5) {
+            // Main flip-back (cols 0–4): fire synchronously so done reaches 5
+            cb({ finished: true });
+          } else {
+            // Prefill flip-back: capture so React renders the intermediate state
+            capturedCb = cb;
+          }
+        } else {
+          cb({ finished: true }); // toValue=0: synchronous
+        }
+      },
+    }));
+
+    renderScreen();
+    await waitFor(() => screen.getByTestId('key-R'));
+    pressWord('RADON');
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('key-ENTER'));
+    });
+    // React rendered: prefillPending=true, isPrefillRevealed=true (prefillRevealedCols[0]=true)
+    // → tileState at line 347: isLocked && (!prefillPending || isPrefillRevealed)
+    //   evaluates isPrefillRevealed=true ✓
+
+    await act(async () => { capturedCb!({ finished: true }); });
+    await waitFor(() => screen.getByTestId('board-row-1'));
+
+    timingMock.mockImplementation(savedImpl);
   });
 });
