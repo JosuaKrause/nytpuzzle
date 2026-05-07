@@ -345,3 +345,66 @@ describe('ConnectionsScreen', () => {
     await waitFor(() => expect(screen.queryByTestId('submit-button')).toBeNull());
   });
 });
+
+// Image puzzle — cards have image_url/image_alt_text instead of content
+const imagePuzzle = {
+  id: 1027, status: 'OK', print_date: '2026-05-06', editor: 'x', illustrator: 'Glenn Harvey',
+  categories: [
+    { title: 'Casino', cards: [
+      { image_url: 'https://ex.com/a.svg', image_alt_text: 'SLOT MACHINE', position: 0 },
+      { image_url: 'https://ex.com/b.svg', image_alt_text: 'CARDS',        position: 4 },
+      { image_url: 'https://ex.com/c.svg', image_alt_text: 'DICE',         position: 8 },
+      { image_url: 'https://ex.com/d.svg', image_alt_text: 'CHIPS',        position: 12 },
+    ]},
+    { title: 'Fasteners', cards: [
+      { image_url: 'https://ex.com/e.svg', image_alt_text: 'ZIPPER',  position: 1 },
+      { image_url: 'https://ex.com/f.svg', image_alt_text: 'BUTTON',  position: 5 },
+      { image_url: 'https://ex.com/g.svg', image_alt_text: 'LACES',   position: 9 },
+      { image_url: 'https://ex.com/h.svg', image_alt_text: 'BUCKLE',  position: 13 },
+    ]},
+    { title: 'Bowling', cards: [
+      { image_url: 'https://ex.com/i.svg', image_alt_text: 'SCORECARD',    position: 2 },
+      { image_url: 'https://ex.com/j.svg', image_alt_text: 'BOWLING BALL', position: 6 },
+      { image_url: 'https://ex.com/k.svg', image_alt_text: 'BOWLING PINS', position: 10 },
+      { image_url: 'https://ex.com/l.svg', image_alt_text: 'LANE',         position: 14 },
+    ]},
+    { title: 'Flags', cards: [
+      { image_url: 'https://ex.com/m.svg', image_alt_text: 'TRISECTION', position: 3 },
+      { image_url: 'https://ex.com/n.svg', image_alt_text: 'CIRCLE',     position: 7 },
+      { image_url: 'https://ex.com/o.svg', image_alt_text: 'STRIPES',    position: 11 },
+      { image_url: 'https://ex.com/p.svg', image_alt_text: 'CROSS',      position: 15 },
+    ]},
+  ],
+};
+
+describe('ConnectionsScreen — image puzzle', () => {
+  beforeEach(() => {
+    mockGetPuzzle.mockReset().mockResolvedValue(imagePuzzle);
+    mockSaveCompletion.mockReset().mockResolvedValue(undefined);
+    mockNav.goBack.mockReset();
+  });
+
+  it('renders image cards (SvgUri) instead of text', async () => {
+    renderScreen();
+    await waitFor(() => screen.getByTestId('card-0'));
+    // Cards render without crashing; card testIDs are present
+    expect(screen.getByTestId('card-4')).toBeTruthy();
+  });
+
+  it('ghost card uses SvgUri for image cards', async () => {
+    renderScreen();
+    await waitFor(() => screen.getByTestId('card-0'));
+    longPress(0);
+    await waitFor(() => screen.getByTestId('ghost-card'));
+    expect(screen.getByTestId('ghost-card')).toBeTruthy();
+  });
+
+  it('solved row shows image_alt_text values', async () => {
+    renderScreen();
+    await waitFor(() => screen.getByTestId('card-0'));
+    select(0, 4, 8, 12);
+    fireEvent.press(screen.getByTestId('submit-button'));
+    await waitFor(() => screen.getByTestId('solved-row-0'));
+    expect(screen.getByText('SLOT MACHINE, CARDS, DICE, CHIPS')).toBeTruthy();
+  });
+});

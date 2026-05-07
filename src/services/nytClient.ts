@@ -11,8 +11,10 @@ export interface WordlePuzzle {
 
 // --- Connections ---
 export interface ConnectionsCard {
-  content: string;
   position: number;
+  content?: string;       // text puzzles
+  image_url?: string;     // image puzzles
+  image_alt_text?: string;
 }
 
 export interface ConnectionsCategory {
@@ -25,6 +27,7 @@ export interface ConnectionsPuzzle {
   id: number;
   print_date: string;
   editor: string;
+  illustrator?: string;
   categories: ConnectionsCategory[];
 }
 

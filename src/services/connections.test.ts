@@ -30,6 +30,16 @@ describe('extractCards', () => {
     expect(cards[0].content).toBe('A');
     expect(cards[4].content).toBe('B');
   });
+
+  it('extracts image cards with imageUrl/imageAlt and empty content', () => {
+    const imgCats: ConnectionsCategory[] = [
+      { title: 'T', cards: [{ position: 0, image_url: 'https://example.com/a.svg', image_alt_text: 'DICE' }] },
+    ];
+    const cards = extractCards(imgCats);
+    expect(cards[0].content).toBe('');
+    expect(cards[0].imageUrl).toBe('https://example.com/a.svg');
+    expect(cards[0].imageAlt).toBe('DICE');
+  });
 });
 
 describe('checkGuess', () => {

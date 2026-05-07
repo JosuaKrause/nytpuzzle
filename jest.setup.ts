@@ -1,3 +1,5 @@
+jest.mock('react-native-svg', () => ({ SvgUri: () => null }));
+
 const realWarn = console.warn.bind(console);
 console.warn = (...args: unknown[]) => {
   realWarn(...args);

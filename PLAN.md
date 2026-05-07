@@ -57,6 +57,7 @@ src/
 - Blue border highlights the drop target while dragging
 - **Animations**: LayoutAnimation slides cards to new positions on swap or correct-guess removal; grid shakes on wrong guess
 - On fail: all remaining categories auto-revealed
+- **Image puzzles**: cards with `image_url`/`image_alt_text` render `<SvgUri>` instead of `<Text>`; solved-row subtitle shows alt text values
 
 ### Strands — 🚧 not yet implemented
 ### Mini crossword — 🚧 not yet implemented
@@ -106,7 +107,7 @@ src/
 ## Known issues / remaining work
 
 ### Active bugs
-1. **Connections image puzzles** — Connections puzzle on 2026-05-06 (and similar dates) has empty cells because it's an image-based puzzle (cells contain images, not text). The current `ConnectionsScreen` only renders `card.label` (text). Need to inspect the raw API JSON for image puzzle schema to know what field carries the image URL/asset.
+_(none known)_
 
 ### Remaining features
 5. **Strands** game implementation (grid word-finding UI; player draws lines through letters)

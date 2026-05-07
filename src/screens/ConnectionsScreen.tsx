@@ -9,6 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { SvgUri } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
@@ -265,7 +266,10 @@ export function ConnectionsScreen({ route, navigation }: Props) {
           >
             <Text style={styles.solvedTitle}>{state.puzzle!.categories[level].title.toUpperCase()}</Text>
             <Text style={styles.solvedWords}>
-              {state.puzzle!.categories[level].cards.map(c => c.content).join(', ')}
+              {state.cards
+                .filter(c => c.level === level)
+                .map(c => c.imageAlt ?? c.content)
+                .join(', ')}
             </Text>
           </View>
         ))}
@@ -309,9 +313,19 @@ export function ConnectionsScreen({ route, navigation }: Props) {
                   });
                 }}
               >
-                <Text style={[styles.cardText, isSelected && styles.cardTextSelected]}>
-                  {card.content}
-                </Text>
+                {card.imageUrl ? (
+                  <SvgUri
+                    width="90%"
+                    height="90%"
+                    uri={card.imageUrl}
+                    accessible
+                    accessibilityLabel={card.imageAlt}
+                  />
+                ) : (
+                  <Text style={[styles.cardText, isSelected && styles.cardTextSelected]}>
+                    {card.content}
+                  </Text>
+                )}
               </Pressable>
             );
           })}
@@ -331,7 +345,17 @@ export function ConnectionsScreen({ route, navigation }: Props) {
             },
           ]}
         >
-          <Text style={styles.ghostText}>{state.cards[activeDrag]?.content}</Text>
+          {state.cards[activeDrag]?.imageUrl ? (
+            <SvgUri
+              width="90%"
+              height="90%"
+              uri={state.cards[activeDrag]!.imageUrl!}
+              accessible
+              accessibilityLabel={state.cards[activeDrag]?.imageAlt}
+            />
+          ) : (
+            <Text style={styles.ghostText}>{state.cards[activeDrag]?.content}</Text>
+          )}
         </Animated.View>
       ) : null}
 

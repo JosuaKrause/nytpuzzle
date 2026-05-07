@@ -1,7 +1,9 @@
 import type { ConnectionsCategory } from './nytClient';
 
 export interface GameCard {
-  content: string;
+  content: string;    // empty string for image cards
+  imageUrl?: string;
+  imageAlt?: string;
   level: number;    // 0=yellow 1=green 2=blue 3=purple
   position: number; // 0-15 original position from puzzle (used in game_data payload)
 }
@@ -21,7 +23,13 @@ export interface RecordedSolvedCategory {
 export function extractCards(categories: ConnectionsCategory[]): GameCard[] {
   const cards: GameCard[] = [];
   categories.forEach((cat, level) => {
-    cat.cards.forEach(c => cards.push({ content: c.content, level, position: c.position }));
+    cat.cards.forEach(c => cards.push({
+      content: c.content ?? '',
+      imageUrl: c.image_url,
+      imageAlt: c.image_alt_text,
+      level,
+      position: c.position,
+    }));
   });
   return cards.sort((a, b) => a.position - b.position);
 }

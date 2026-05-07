@@ -102,6 +102,7 @@ Set `DEV_DRY_RUN=true` in `.env`. Injected at build time via `app.config.js` →
   - *Shake*: `rowShakeAnim` (translateX) on the `shakingRow`. Fires **only on rejected input** (not-enough-letters, hard-mode violation) — **not** on valid wrong guesses. Cleared via `.start()` callback.
 
 **Connections** (`src/services/connections.ts` + `src/screens/ConnectionsScreen.tsx`):
+- **Image puzzles**: some Connections puzzles (e.g. 2026-05-06) use SVG images instead of text. `ConnectionsCard` has optional `image_url` + `image_alt_text` (image puzzle) or `content` (text puzzle). `GameCard` carries `imageUrl?`/`imageAlt?` alongside `content: string` (empty for image cards). Card face renders `<SvgUri>` when `imageUrl` is present, `<Text>` otherwise. Solved-row words use `imageAlt ?? content` from `state.cards`. `react-native-svg` is mocked as `{ SvgUri: () => null }` in `jest.setup.ts`.
 - Tap to select (max 4), submit to guess. "One away!" shown when 3/4 selected cards share a category.
 - **Drag-to-reorder** (PanResponder, no native deps): `delayLongPress={150}` on each card (down from the 500 ms default). Ghost card rendered at `SafeAreaView` root so `pageX/pageY` from `measure()` map directly to absolute screen coords.
 - **Card `onLayout`** calls `measure()` on the card's own ref to store absolute screen coords in `cardLayouts`. This is required because `findCardAt` receives `pageX/pageY` (screen-absolute); storing layout-relative coords would give wrong hit targets for rows 2–4.
