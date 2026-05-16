@@ -72,7 +72,7 @@ export function HomeScreen({ nytS, nytA, dryRun = false }: Props) {
   });
 
   const load = useCallback(async () => {
-    setState(s => ({ ...s, loading: true, error: null }));
+    setState(s => ({ ...s, error: null }));
     try {
       const [cached, statuses] = await Promise.all([
         getCachedGames(date),
