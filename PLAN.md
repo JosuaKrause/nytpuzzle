@@ -57,7 +57,7 @@ src/
 - Blue border highlights the drop target while dragging
 - **Animations**: LayoutAnimation slides cards to new positions on swap or correct-guess removal; grid shakes on wrong guess
 - On fail: all remaining categories auto-revealed
-- **Image puzzles**: cards with `image_url`/`image_alt_text` render `<SvgUri>` instead of `<Text>`; solved-row subtitle shows alt text values
+- **Image puzzles**: cards with `image_url`/`image_alt_text` render their alt text (e.g. `SLOT MACHINE`) instead of an SVG image; solved-row subtitle also shows alt text values. `react-native-svg` was removed because it conflicted with LayoutAnimation on Fabric.
 - Grid is vertically centred via a `gridWrapper` (`flex: 1, justifyContent: 'center'`) — `justifyContent` must not be on `boardContainer` itself or LayoutAnimation breaks on Fabric
 
 ### Strands — 🚧 not yet implemented
@@ -108,7 +108,12 @@ src/
 ## Known issues / remaining work
 
 ### Active bugs
-1. **Connections animations broken** — LayoutAnimation card slides and shake animation stopped working after importing `react-native-svg`. Moving `justifyContent: 'center'` off `boardContainer` onto a `gridWrapper` did not fix it. Root cause is likely `react-native-svg` conflicting with LayoutAnimation on the new architecture (Fabric). Next session: investigate whether removing `react-native-svg` (and rendering image-card alt text instead) restores animations, or whether a Fabric-compatible SVG alternative exists.
+1. **Connections animations broken** — LayoutAnimation card slides (correct guess / drag swap) and grid shake do not animate on device. Root cause not yet confirmed. Things tried that did NOT fix it:
+   - Moving `justifyContent: 'center'` off `boardContainer` onto `gridWrapper`
+   - Removing the `react-native-svg` JS import (while native module still compiled in APK)
+   - Separating the shake `Animated.View` wrapper from the plain `View` grid container
+   
+   Since SVG images are required, removing `react-native-svg` is not a viable fix path even as a diagnostic (we'd need to put it back). Next to try: replace LayoutAnimation entirely with explicit `Animated`-based card movement (FLIP technique — snapshot positions before setState, animate each card from old→new position).
 
 ### Remaining features
 5. **Strands** game implementation (grid word-finding UI; player draws lines through letters)

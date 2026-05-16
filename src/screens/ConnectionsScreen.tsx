@@ -281,9 +281,15 @@ export function ConnectionsScreen({ route, navigation }: Props) {
         {/* flexWrap keeps all cards in one parent so LayoutAnimation can track
             them across reorders — explicit row Views would cause cross-parent
             unmount/remount which LayoutAnimation cannot animate */}
+        {/* Animated.View carries only the shake transform so LayoutAnimation
+            can track child positions on Fabric without interference from a
+            native-driven animated parent */}
         <Animated.View
           {...gridPan.panHandlers}
-          style={[styles.grid, { transform: [{ translateX: shakeAnim }] }]}
+          style={{ transform: [{ translateX: shakeAnim }] }}
+        >
+        <View
+          style={styles.grid}
           testID="grid"
           onLayout={e => setGridWidth(e.nativeEvent.layout.width)}
         >
@@ -335,6 +341,7 @@ export function ConnectionsScreen({ route, navigation }: Props) {
               </Pressable>
             );
           })}
+        </View>
         </Animated.View>
         </View>
       </View>
