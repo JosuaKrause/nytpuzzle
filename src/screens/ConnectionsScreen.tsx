@@ -274,6 +274,10 @@ export function ConnectionsScreen({ route, navigation }: Props) {
           </View>
         ))}
 
+        {/* gridWrapper centers the grid vertically without putting justifyContent
+            on boardContainer itself — that would break LayoutAnimation position
+            resolution on the new architecture */}
+        <View style={styles.gridWrapper}>
         {/* flexWrap keeps all cards in one parent so LayoutAnimation can track
             them across reorders — explicit row Views would cause cross-parent
             unmount/remount which LayoutAnimation cannot animate */}
@@ -332,6 +336,7 @@ export function ConnectionsScreen({ route, navigation }: Props) {
             );
           })}
         </Animated.View>
+        </View>
       </View>
 
       {activeDrag !== null ? (
@@ -411,7 +416,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, paddingTop: 24 },
   title: { fontSize: 22, fontWeight: '700' },
   dryRunLabel: { color: '#FBBF24', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
-  boardContainer: { flex: 1, justifyContent: 'center', paddingTop: 40 },
+  boardContainer: { flex: 1 },
+  gridWrapper: { flex: 1, justifyContent: 'center', paddingTop: 40 },
   bannerOverlay: { position: 'absolute', top: 8, left: 0, right: 0, zIndex: 10, alignItems: 'center' },
   banner: { backgroundColor: '#333', borderRadius: 6, paddingHorizontal: 14, paddingVertical: 8 },
   bannerText: { color: '#fff', fontWeight: '700', fontSize: 14 },

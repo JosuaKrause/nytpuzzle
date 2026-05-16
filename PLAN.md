@@ -58,6 +58,7 @@ src/
 - **Animations**: LayoutAnimation slides cards to new positions on swap or correct-guess removal; grid shakes on wrong guess
 - On fail: all remaining categories auto-revealed
 - **Image puzzles**: cards with `image_url`/`image_alt_text` render `<SvgUri>` instead of `<Text>`; solved-row subtitle shows alt text values
+- Grid is vertically centred via a `gridWrapper` (`flex: 1, justifyContent: 'center'`) — `justifyContent` must not be on `boardContainer` itself or LayoutAnimation breaks on Fabric
 
 ### Strands — 🚧 not yet implemented
 ### Mini crossword — 🚧 not yet implemented
@@ -107,11 +108,11 @@ src/
 ## Known issues / remaining work
 
 ### Active bugs
-_(none known)_
+1. **Connections animations broken** — LayoutAnimation card slides and shake animation stopped working after importing `react-native-svg`. Moving `justifyContent: 'center'` off `boardContainer` onto a `gridWrapper` did not fix it. Root cause is likely `react-native-svg` conflicting with LayoutAnimation on the new architecture (Fabric). Next session: investigate whether removing `react-native-svg` (and rendering image-card alt text instead) restores animations, or whether a Fabric-compatible SVG alternative exists.
 
 ### Remaining features
 5. **Strands** game implementation (grid word-finding UI; player draws lines through letters)
-6. **Mini crossword** implementation (5×5 grid; separate sync via `svc/crosswords/v6/game/{id}`)
+6. **Mini crossword** implementation (5×5ital grid; separate sync via `svc/crosswords/v6/game/{id}`)
 7. **Score sync trigger** — currently manual via `flush()`; needs a network-state listener (NetInfo)
 8. **`user_id` for sync** — not stored yet; needs to be fetched once from GET state and cached
 9. **Connections UX** — more visual grouping aids planned (e.g. visual grouping hypotheses)
