@@ -322,9 +322,11 @@ export function ConnectionsScreen({ route, navigation }: Props) {
                     accessibilityLabel={card.imageAlt}
                   />
                 ) : (
-                  <Text style={[styles.cardText, isSelected && styles.cardTextSelected]}>
-                    {card.content}
-                  </Text>
+                  <View style={styles.cardTextWrap}>
+                    <Text style={[styles.cardText, isSelected && styles.cardTextSelected]}>
+                      {card.content}
+                    </Text>
+                  </View>
                 )}
               </Pressable>
             );
@@ -406,10 +408,10 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   centerText: { fontSize: 16, textAlign: 'center', paddingHorizontal: 20 },
   link: { color: '#1D4ED8', marginTop: 12, fontSize: 16 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10 },
-  title: { fontSize: 16, fontWeight: '700' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, paddingTop: 24 },
+  title: { fontSize: 22, fontWeight: '700' },
   dryRunLabel: { color: '#FBBF24', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
-  boardContainer: { flex: 1 },
+  boardContainer: { flex: 1, justifyContent: 'center', paddingTop: 40 },
   bannerOverlay: { position: 'absolute', top: 8, left: 0, right: 0, zIndex: 10, alignItems: 'center' },
   banner: { backgroundColor: '#333', borderRadius: 6, paddingHorizontal: 14, paddingVertical: 8 },
   bannerText: { color: '#fff', fontWeight: '700', fontSize: 14 },
@@ -428,7 +430,8 @@ const styles = StyleSheet.create({
   cardSelected: { backgroundColor: '#5A594E' },
   cardDragging: { opacity: 0.3 },
   cardDropTarget: { borderWidth: 2, borderColor: '#1D4ED8' },
-  cardText: { fontSize: 11, fontWeight: '700', textAlign: 'center', color: '#1a1a1a', alignSelf: 'stretch' },
+  cardTextWrap: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
+  cardText: { fontSize: 11, fontWeight: '700', textAlign: 'center', color: '#1a1a1a' },
   cardTextSelected: { color: '#fff' },
   ghostCard: {
     position: 'absolute',

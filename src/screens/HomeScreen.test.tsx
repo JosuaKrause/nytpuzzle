@@ -171,4 +171,24 @@ describe('HomeScreen', () => {
     const today = new Date().toISOString().slice(0, 10);
     expect(screen.getByText(today)).toBeTruthy();
   });
+
+  it('Today button is always visible', async () => {
+    render(<HomeScreen />);
+    await waitFor(() => screen.getByTestId('go-to-today'));
+  });
+
+  it('Today button jumps back to today from a past date', async () => {
+    render(<HomeScreen />);
+    await waitFor(() => screen.getByTestId('prev-day'));
+    fireEvent.press(screen.getByTestId('prev-day'));
+    await waitFor(() => expect(mockGetCachedGames).toHaveBeenCalledTimes(2));
+    fireEvent.press(screen.getByTestId('go-to-today'));
+    const today = new Date().toISOString().slice(0, 10);
+    await waitFor(() => screen.getByText(today));
+  });
+
+  it('shows the app headline', async () => {
+    render(<HomeScreen />);
+    await waitFor(() => screen.getByText('NYT Puzzles'));
+  });
 });

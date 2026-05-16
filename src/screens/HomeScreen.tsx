@@ -2,11 +2,11 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
@@ -103,6 +103,10 @@ export function HomeScreen({ nytS, nytA, dryRun = false }: Props) {
     setDate(d => offsetDate(d, 1));
   }, []);
 
+  const goToToday = useCallback(() => {
+    setDate(todayString());
+  }, []);
+
   const preload = useCallback(async () => {
     setState(s => ({ ...s, preloading: true, error: null }));
     try {
@@ -126,72 +130,91 @@ export function HomeScreen({ nytS, nytA, dryRun = false }: Props) {
   const atToday = date >= today;
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.dateRow}>
-        <Pressable onPress={goToPrevDay} testID="prev-day" style={styles.arrow}>
-          <Text style={styles.arrowText}>‹</Text>
-        </Pressable>
-        <Text style={styles.heading}>{date}</Text>
+    <SafeAreaView style={styles.safe}>
+      <Text style={styles.title}>NYT Puzzles</Text>
+
+      <View style={styles.main}>
+        <View style={styles.dateRow}>
+          <View style={styles.dateSide} />
+          <View style={styles.dateNav}>
+            <Pressable onPress={goToPrevDay} testID="prev-day" style={styles.arrow}>
+              <Text style={styles.arrowText}>‹</Text>
+            </Pressable>
+            <Text style={styles.heading}>{date}</Text>
+            <Pressable
+              onPress={goToNextDay}
+              testID="next-day"
+              disabled={atToday}
+              style={styles.arrow}
+            >
+              <Text style={[styles.arrowText, atToday && styles.arrowDisabled]}>›</Text>
+            </Pressable>
+          </View>
+          <View style={styles.dateSide}>
+            <Pressable onPress={goToToday} testID="go-to-today" disabled={atToday} style={styles.todayButton}>
+              <Text style={[styles.todayLinkText, atToday && styles.todayDisabled]}>Today</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {dryRun ? (
+          <View style={styles.dryRunBanner} testID="dry-run-banner">
+            <Text style={styles.dryRunText}>DEV — results not saved</Text>
+          </View>
+        ) : null}
+
+        {state.error ? <Text style={styles.error}>{state.error}</Text> : null}
+
+        {GAMES.map(game => {
+          const row = state.games[game];
+          return (
+            <Pressable
+              key={game}
+              style={styles.row}
+              testID={`row-${game}`}
+              onPress={() => navigation.navigate(GAME_ROUTE[game] as 'Wordle', { date, dryRun })}
+            >
+              <View style={styles.rowLeft}>
+                <Text style={styles.gameName}>{GAME_LABEL[game]}</Text>
+                <Text style={[styles.cacheStatus, row?.cached ? styles.cached : styles.uncached]}>
+                  {row?.cached ? 'Ready offline' : 'Not cached'}
+                </Text>
+              </View>
+              {row?.syncStatus ? <SyncBadge status={row.syncStatus} /> : null}
+            </Pressable>
+          );
+        })}
+
         <Pressable
-          onPress={goToNextDay}
-          testID="next-day"
-          disabled={atToday}
-          style={styles.arrow}
+          style={[styles.button, state.preloading && styles.buttonDisabled]}
+          onPress={preload}
+          disabled={state.preloading}
+          testID="preload-button"
         >
-          <Text style={[styles.arrowText, atToday && styles.arrowDisabled]}>›</Text>
+          <Text style={styles.buttonText}>
+            {state.preloading ? 'Loading…' : 'Preload'}
+          </Text>
         </Pressable>
       </View>
-
-      {dryRun ? (
-        <View style={styles.dryRunBanner} testID="dry-run-banner">
-          <Text style={styles.dryRunText}>DEV — results not saved</Text>
-        </View>
-      ) : null}
-
-      {state.error ? <Text style={styles.error}>{state.error}</Text> : null}
-
-      {GAMES.map(game => {
-        const row = state.games[game];
-        return (
-          <Pressable
-            key={game}
-            style={styles.row}
-            testID={`row-${game}`}
-            onPress={() => navigation.navigate(GAME_ROUTE[game] as 'Wordle', { date, dryRun })}
-          >
-            <View style={styles.rowLeft}>
-              <Text style={styles.gameName}>{GAME_LABEL[game]}</Text>
-              <Text style={[styles.cacheStatus, row?.cached ? styles.cached : styles.uncached]}>
-                {row?.cached ? 'Ready offline' : 'Not cached'}
-              </Text>
-            </View>
-            {row?.syncStatus ? <SyncBadge status={row.syncStatus} /> : null}
-          </Pressable>
-        );
-      })}
-
-      <Pressable
-        style={[styles.button, state.preloading && styles.buttonDisabled]}
-        onPress={preload}
-        disabled={state.preloading}
-        testID="preload-button"
-      >
-        <Text style={styles.buttonText}>
-          {state.preloading ? 'Loading…' : 'Preload'}
-        </Text>
-      </Pressable>
-    </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  container: { padding: 20 },
-  dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
-  heading: { fontSize: 20, fontWeight: '700' },
-  arrow: { padding: 8 },
+  safe: { flex: 1, backgroundColor: '#fff', paddingHorizontal: 20 },
+  title: { fontSize: 26, fontWeight: '800', textAlign: 'center', paddingTop: 24, marginBottom: 8, color: '#111' },
+  main: { flex: 1, justifyContent: 'center', paddingBottom: 20 },
+  dateRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  dateSide: { flex: 1, alignItems: 'flex-end' },
+  dateNav: { flexDirection: 'row', alignItems: 'center' },
+  heading: { fontSize: 20, fontWeight: '700', marginHorizontal: 4 },
+  arrow: { padding: 14 },
   arrowText: { fontSize: 28, fontWeight: '300', color: '#1D4ED8' },
   arrowDisabled: { color: '#D1D5DB' },
+  todayButton: { paddingVertical: 6, paddingHorizontal: 12 },
+  todayLinkText: { fontSize: 13, color: '#1D4ED8' },
+  todayDisabled: { color: '#D1D5DB' },
   dryRunBanner: { marginBottom: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: '#FEF3C7', alignSelf: 'flex-start' },
   dryRunText: { fontSize: 12, color: '#92400E', fontWeight: '600' },
   error: { color: '#F87171', marginBottom: 12 },

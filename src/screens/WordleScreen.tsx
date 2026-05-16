@@ -383,9 +383,9 @@ export function WordleScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#121213', paddingHorizontal: 8 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#121213' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, paddingTop: 24 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  title: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  title: { color: '#fff', fontSize: 22, fontWeight: '700' },
   hardLabel: { color: '#818384', fontSize: 13 },
   hardOn: { color: '#538D4E' },
   dryRunLabel: { color: '#FBBF24', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
