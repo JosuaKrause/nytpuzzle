@@ -134,67 +134,76 @@ export function HomeScreen({ nytS, nytA, dryRun = false }: Props) {
       <Text style={styles.title}>NYT Puzzles</Text>
 
       <View style={styles.main}>
-        <View style={styles.dateRow}>
-          <View style={styles.dateSide} />
-          <View style={styles.dateNav}>
-            <Pressable onPress={goToPrevDay} testID="prev-day" style={styles.arrow}>
-              <Text style={styles.arrowText}>‹</Text>
-            </Pressable>
-            <Text style={styles.heading}>{date}</Text>
-            <Pressable
-              onPress={goToNextDay}
-              testID="next-day"
-              disabled={atToday}
-              style={styles.arrow}
-            >
-              <Text style={[styles.arrowText, atToday && styles.arrowDisabled]}>›</Text>
-            </Pressable>
-          </View>
-          <View style={styles.dateSide}>
-            <Pressable onPress={goToToday} testID="go-to-today" disabled={atToday} style={styles.todayButton}>
-              <Text style={[styles.todayLinkText, atToday && styles.todayDisabled]}>Today</Text>
-            </Pressable>
+        {/* Top flex spacer — date sits at its bottom, flush against the game block */}
+        <View style={styles.topSpacer}>
+          <View style={styles.dateRow}>
+            <View style={styles.dateSide} />
+            <View style={styles.dateNav}>
+              <Pressable onPress={goToPrevDay} testID="prev-day" style={styles.arrow}>
+                <Text style={styles.arrowText}>‹</Text>
+              </Pressable>
+              <Text style={styles.heading}>{date}</Text>
+              <Pressable
+                onPress={goToNextDay}
+                testID="next-day"
+                disabled={atToday}
+                style={styles.arrow}
+              >
+                <Text style={[styles.arrowText, atToday && styles.arrowDisabled]}>›</Text>
+              </Pressable>
+            </View>
+            <View style={styles.dateSide}>
+              <Pressable onPress={goToToday} testID="go-to-today" disabled={atToday} style={styles.todayButton}>
+                <Text style={[styles.todayLinkText, atToday && styles.todayDisabled]}>Today</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
 
-        {dryRun ? (
-          <View style={styles.dryRunBanner} testID="dry-run-banner">
-            <Text style={styles.dryRunText}>DEV — results not saved</Text>
-          </View>
-        ) : null}
+        {/* Game block — this is what is vertically centered */}
+        <View style={styles.gameBlock}>
+          {dryRun ? (
+            <View style={styles.dryRunBanner} testID="dry-run-banner">
+              <Text style={styles.dryRunText}>DEV — results not saved</Text>
+            </View>
+          ) : null}
 
-        {state.error ? <Text style={styles.error}>{state.error}</Text> : null}
+          {state.error ? <Text style={styles.error}>{state.error}</Text> : null}
 
-        {GAMES.map(game => {
-          const row = state.games[game];
-          return (
-            <Pressable
-              key={game}
-              style={styles.row}
-              testID={`row-${game}`}
-              onPress={() => navigation.navigate(GAME_ROUTE[game] as 'Wordle', { date, dryRun })}
-            >
-              <View style={styles.rowLeft}>
-                <Text style={styles.gameName}>{GAME_LABEL[game]}</Text>
-                <Text style={[styles.cacheStatus, row?.cached ? styles.cached : styles.uncached]}>
-                  {row?.cached ? 'Ready offline' : 'Not cached'}
-                </Text>
-              </View>
-              {row?.syncStatus ? <SyncBadge status={row.syncStatus} /> : null}
-            </Pressable>
-          );
-        })}
+          {GAMES.map(game => {
+            const row = state.games[game];
+            return (
+              <Pressable
+                key={game}
+                style={styles.row}
+                testID={`row-${game}`}
+                onPress={() => navigation.navigate(GAME_ROUTE[game] as 'Wordle', { date, dryRun })}
+              >
+                <View style={styles.rowLeft}>
+                  <Text style={styles.gameName}>{GAME_LABEL[game]}</Text>
+                  <Text style={[styles.cacheStatus, row?.cached ? styles.cached : styles.uncached]}>
+                    {row?.cached ? 'Ready offline' : 'Not cached'}
+                  </Text>
+                </View>
+                {row?.syncStatus ? <SyncBadge status={row.syncStatus} /> : null}
+              </Pressable>
+            );
+          })}
 
-        <Pressable
-          style={[styles.button, state.preloading && styles.buttonDisabled]}
-          onPress={preload}
-          disabled={state.preloading}
-          testID="preload-button"
-        >
-          <Text style={styles.buttonText}>
-            {state.preloading ? 'Loading…' : 'Preload'}
-          </Text>
-        </Pressable>
+          <Pressable
+            style={[styles.button, state.preloading && styles.buttonDisabled]}
+            onPress={preload}
+            disabled={state.preloading}
+            testID="preload-button"
+          >
+            <Text style={styles.buttonText}>
+              {state.preloading ? 'Loading…' : 'Preload'}
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Equal bottom spacer — keeps game block centred */}
+        <View style={styles.bottomSpacer} />
       </View>
     </SafeAreaView>
   );
@@ -204,8 +213,11 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   safe: { flex: 1, backgroundColor: '#fff', paddingHorizontal: 20 },
   title: { fontSize: 26, fontWeight: '800', textAlign: 'center', paddingTop: 24, marginBottom: 8, color: '#111' },
-  main: { flex: 1, justifyContent: 'center', paddingBottom: 20 },
-  dateRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  main: { flex: 1 },
+  topSpacer: { flex: 1, justifyContent: 'flex-end' },
+  gameBlock: {},
+  bottomSpacer: { flex: 1 },
+  dateRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   dateSide: { flex: 1, alignItems: 'flex-end' },
   dateNav: { flexDirection: 'row', alignItems: 'center' },
   heading: { fontSize: 20, fontWeight: '700', marginHorizontal: 4 },
