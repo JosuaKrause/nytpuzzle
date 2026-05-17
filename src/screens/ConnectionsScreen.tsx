@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
-  LayoutAnimation,
   PanResponder,
   Pressable,
   StyleSheet,
@@ -44,6 +43,18 @@ interface State {
   message: string | null;
 }
 
+// Overlay card: a detached copy of a card rendered at absolute screen coords for animation.
+// Completely independent of the real grid so the grid layout is never disturbed.
+interface OverlayCard {
+  cardIdx: number;
+  slotIdx: number; // index into overlayAnims (0–3)
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  selected: boolean;
+}
+
 const INITIAL: State = {
   puzzle: null, cards: [], boardOrder: [], selected: [],
   solvedLevels: [], solvedCats: [], guesses: [], mistakes: 0,
@@ -79,7 +90,21 @@ export function ConnectionsScreen({ route, navigation }: Props) {
   const [activeDrag, setActiveDrag] = useState<number | null>(null);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
 
-  // Animation -----------------------------------------------------------------
+  // Overlay animation layer ---------------------------------------------------
+  // Cards being animated are hidden in the real grid; overlay copies are shown
+  // on a detached absolute layer so the real grid layout is never touched.
+  const [overlayCards, setOverlayCards] = useState<OverlayCard[]>([]);
+  const [hiddenCards, setHiddenCards] = useState<Set<number>>(new Set());
+
+  // 4 animation slots (swap uses 0-1, correct-guess fade uses 0-3)
+  const overlayAnims = useRef(
+    Array.from({ length: 4 }, () => ({
+      pos: new Animated.ValueXY({ x: 0, y: 0 }),
+      opacity: new Animated.Value(1),
+    })),
+  ).current;
+
+  // Shake animation -----------------------------------------------------------
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
   const runShake = useCallback(() => {
@@ -110,10 +135,39 @@ export function ConnectionsScreen({ route, navigation }: Props) {
         if (!dragRef.current) return;
         const target = findCardAt(evt.nativeEvent.pageX, evt.nativeEvent.pageY, cardLayouts.current);
         const srcIdx = dragRef.current.cardIdx;
+
         if (target !== null && target !== srcIdx) {
-          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-          setState(s => ({ ...s, boardOrder: swapInOrder(s.boardOrder, srcIdx, target) }));
+          // tgtLayout always defined — target returned by findCardAt which scans cardLayouts
+          const srcLayout = cardLayouts.current.get(srcIdx);
+          const tgtLayout = cardLayouts.current.get(target)!;
+
+          if (srcLayout) {
+            // Both positions known: animate the swap on the overlay layer
+            overlayAnims[0].pos.setValue({ x: srcLayout.x, y: srcLayout.y });
+            overlayAnims[1].pos.setValue({ x: tgtLayout.x, y: tgtLayout.y });
+            overlayAnims[0].opacity.setValue(1);
+            overlayAnims[1].opacity.setValue(1);
+            setOverlayCards([
+              { cardIdx: srcIdx, slotIdx: 0, ...srcLayout, selected: false },
+              { cardIdx: target, slotIdx: 1, ...tgtLayout, selected: false },
+            ]);
+            setHiddenCards(new Set([srcIdx, target]));
+            Animated.parallel([
+              Animated.timing(overlayAnims[0].pos.x, { toValue: tgtLayout.x, duration: 250, useNativeDriver: true }),
+              Animated.timing(overlayAnims[0].pos.y, { toValue: tgtLayout.y, duration: 250, useNativeDriver: true }),
+              Animated.timing(overlayAnims[1].pos.x, { toValue: srcLayout.x, duration: 250, useNativeDriver: true }),
+              Animated.timing(overlayAnims[1].pos.y, { toValue: srcLayout.y, duration: 250, useNativeDriver: true }),
+            ]).start(() => {
+              setState(s => ({ ...s, boardOrder: swapInOrder(s.boardOrder, srcIdx, target) }));
+              setOverlayCards([]);
+              setHiddenCards(new Set());
+            });
+          } else {
+            // Source layout unknown — instant swap, no animation
+            setState(s => ({ ...s, boardOrder: swapInOrder(s.boardOrder, srcIdx, target) }));
+          }
         }
+
         dragRef.current = null;
         setActiveDrag(null);
         setDropTarget(null);
@@ -183,12 +237,32 @@ export function ConnectionsScreen({ route, navigation }: Props) {
         });
       }
 
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setState({
-        ...s, guesses: newGuesses, solvedCats: newSolvedCats,
-        solvedLevels: newSolvedLevels, boardOrder: newBoardOrder,
-        selected: [], status: won ? 'win' : 'in_progress',
-        message: won ? '🎉 Genius!' : null,
+      // Build overlay for the 4 solved cards, using measured screen positions
+      const items: OverlayCard[] = [];
+      s.selected.forEach((cardIdx, i) => {
+        overlayAnims[i].opacity.setValue(1);
+        const layout = cardLayouts.current.get(cardIdx);
+        if (layout) {
+          overlayAnims[i].pos.setValue({ x: layout.x, y: layout.y });
+          items.push({ cardIdx, slotIdx: i, ...layout, selected: true });
+        }
+      });
+      setOverlayCards(items);
+      setHiddenCards(new Set(s.selected));
+
+      Animated.parallel(
+        s.selected.map((_, i) =>
+          Animated.timing(overlayAnims[i].opacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+        ),
+      ).start(() => {
+        setState({
+          ...s, guesses: newGuesses, solvedCats: newSolvedCats,
+          solvedLevels: newSolvedLevels, boardOrder: newBoardOrder,
+          selected: [], status: won ? 'win' : 'in_progress',
+          message: won ? '🎉 Genius!' : null,
+        });
+        setOverlayCards([]);
+        setHiddenCards(new Set());
       });
       return;
     }
@@ -213,7 +287,7 @@ export function ConnectionsScreen({ route, navigation }: Props) {
       message: fail ? '😞 Better luck next time!' : oneAway ? 'One away!' : 'Wrong!',
     });
     if (!fail) runShake();
-  }, [date, dryRun, runShake]);
+  }, [date, dryRun, runShake, overlayAnims]);
 
   const handleDeselectAll = useCallback(() => {
     setState(s => ({ ...s, selected: [], message: null }));
@@ -274,16 +348,8 @@ export function ConnectionsScreen({ route, navigation }: Props) {
           </View>
         ))}
 
-        {/* gridWrapper centers the grid vertically without putting justifyContent
-            on boardContainer itself — that would break LayoutAnimation position
-            resolution on the new architecture */}
+        {/* Plain grid — no animation transforms applied; gridWrapper centres it */}
         <View style={styles.gridWrapper}>
-        {/* flexWrap keeps all cards in one parent so LayoutAnimation can track
-            them across reorders — explicit row Views would cause cross-parent
-            unmount/remount which LayoutAnimation cannot animate */}
-        {/* Animated.View carries only the shake transform so LayoutAnimation
-            can track child positions on Fabric without interference from a
-            native-driven animated parent */}
         <Animated.View
           {...gridPan.panHandlers}
           style={{ transform: [{ translateX: shakeAnim }] }}
@@ -310,6 +376,7 @@ export function ConnectionsScreen({ route, navigation }: Props) {
                 style={[
                   styles.card,
                   { width: cardWidth },
+                  hiddenCards.has(cardIdx) && styles.cardHidden,
                   isSelected && styles.cardSelected,
                   isBeingDragged && styles.cardDragging,
                   isDropTarget && styles.cardDropTarget,
@@ -346,6 +413,7 @@ export function ConnectionsScreen({ route, navigation }: Props) {
         </View>
       </View>
 
+      {/* Ghost card: dragged card following the finger */}
       {activeDrag !== null ? (
         <Animated.View
           testID="ghost-card"
@@ -372,6 +440,45 @@ export function ConnectionsScreen({ route, navigation }: Props) {
           )}
         </Animated.View>
       ) : null}
+
+      {/* Overlay layer: detached animated copies of cards being swapped or faded.
+          Positioned absolutely so grid layout is never affected. */}
+      {overlayCards.map(ov => (
+        <Animated.View
+          key={`overlay-${ov.cardIdx}`}
+          testID={`overlay-${ov.cardIdx}`}
+          pointerEvents="none"
+          style={[
+            styles.overlayCard,
+            {
+              width: ov.width,
+              height: ov.height,
+              opacity: overlayAnims[ov.slotIdx].opacity,
+              transform: [
+                { translateX: overlayAnims[ov.slotIdx].pos.x },
+                { translateY: overlayAnims[ov.slotIdx].pos.y },
+              ],
+            },
+            ov.selected && styles.cardSelected,
+          ]}
+        >
+          {state.cards[ov.cardIdx]?.imageUrl ? (
+            <SvgUri
+              width="90%"
+              height="90%"
+              uri={state.cards[ov.cardIdx]!.imageUrl!}
+              accessible
+              accessibilityLabel={state.cards[ov.cardIdx]?.imageAlt}
+            />
+          ) : (
+            <View style={styles.cardTextWrap}>
+              <Text style={[styles.cardText, ov.selected && styles.cardTextSelected]}>
+                {state.cards[ov.cardIdx]?.content}
+              </Text>
+            </View>
+          )}
+        </Animated.View>
+      ))}
 
       <View style={styles.footer}>
         <View style={styles.mistakes}>
@@ -440,12 +547,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 4,
   },
+  cardHidden: { opacity: 0 },
   cardSelected: { backgroundColor: '#5A594E' },
   cardDragging: { opacity: 0.3 },
   cardDropTarget: { borderWidth: 2, borderColor: '#1D4ED8' },
   cardTextWrap: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
   cardText: { fontSize: 11, fontWeight: '700', textAlign: 'center', color: '#1a1a1a' },
   cardTextSelected: { color: '#fff' },
+  overlayCard: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    backgroundColor: '#EFEFE6',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 4,
+    zIndex: 50,
+  },
   ghostCard: {
     position: 'absolute',
     backgroundColor: '#5A594E',

@@ -33,3 +33,11 @@ jest.spyOn(Animated, 'timing').mockImplementation(asyncAnim as never);
 jest.spyOn(Animated, 'spring').mockImplementation(asyncAnim as never);
 jest.spyOn(Animated, 'delay').mockImplementation(asyncDelay as never);
 jest.spyOn(Animated, 'sequence').mockImplementation(asyncSequence as never);
+
+const asyncParallel = (animations: Array<{ start: (cb?: (r: { finished: boolean }) => void) => void }>) => ({
+  start: (cb?: (r: { finished: boolean }) => void) => {
+    animations.forEach(a => a.start());
+    if (cb) Promise.resolve().then(() => cb({ finished: true }));
+  },
+});
+jest.spyOn(Animated, 'parallel').mockImplementation(asyncParallel as never);

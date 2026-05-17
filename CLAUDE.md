@@ -107,18 +107,31 @@ Set `DEV_DRY_RUN=true` in `.env`. Injected at build time via `app.config.js` →
 - Tap to select (max 4), submit to guess. "One away!" shown when 3/4 selected cards share a category.
 - **Drag-to-reorder** (PanResponder, no native deps): `delayLongPress={150}` on each card (down from the 500 ms default). Ghost card rendered at `SafeAreaView` root so `pageX/pageY` from `measure()` map directly to absolute screen coords.
 - **Card `onLayout`** calls `measure()` on the card's own ref to store absolute screen coords in `cardLayouts`. This is required because `findCardAt` receives `pageX/pageY` (screen-absolute); storing layout-relative coords would give wrong hit targets for rows 2–4.
-- **Grid layout**: `flexDirection: 'row', flexWrap: 'wrap'` with `onLayout`-measured `cardWidth`. All 16 cards are direct children of one plain `View` (the grid). That `View` is wrapped by an `Animated.View` that carries the shake `translateX` transform. The separation was tried as an animation fix but did not resolve the bug. Cards must remain in one flat parent (not separate row Views) or LayoutAnimation cannot track cross-row swaps.
-- **`stateRef` pattern**: `handleSubmit` reads `stateRef.current` directly so it can call `LayoutAnimation.configureNext(...)` before `setState` (must happen in the same synchronous call, before the render that triggers the layout change).
-- **Animations — BROKEN on device**: `LayoutAnimation.configureNext(easeInEaseOut)` (card slides on swap / correct-guess removal) and `shakeAnim` (translateX on wrong guess) do not animate on device. Root cause unconfirmed. The following did **not** fix it: (1) moving `justifyContent` off `boardContainer`, (2) removing the `react-native-svg` JS import while native module stays in APK, (3) separating the shake `Animated.View` from the plain grid `View`. Next to try: replace LayoutAnimation with explicit FLIP-technique `Animated` (removing `react-native-svg` is not a viable path since SVG images are required).
+- **Grid layout**: `flexDirection: 'row', flexWrap: 'wrap'` with `onLayout`-measured `cardWidth`. All 16 cards are plain `Pressable`s in a flat `View` (no animation transforms on the real grid).
+- **`stateRef` pattern**: `handleSubmit` reads `stateRef.current` directly so it always has fresh state when triggered.
+- **Animations — overlay layer**: The real grid is purely static. A detached overlay layer (absolutely positioned at SafeAreaView root, `zIndex: 50`) renders animated copies of cards being swapped or faded. Real cards being animated are hidden with `cardHidden: {opacity: 0}`. After animation the overlay clears and real state updates.
+  - *Swap*: two overlay cards slide to each other's positions (250 ms `translateX/Y`), then `boardOrder` swaps. Falls back to instant swap if `srcLayout` not in `cardLayouts`.
+  - *Correct-guess fade*: four overlay copies fade to opacity 0 (200 ms), then state commits. Only cards with known `cardLayouts` entries get overlay copies.
+  - *Shake*: `shakeAnim` (`translateX`) on the `Animated.View` wrapper around the grid. Fires on non-fail wrong guesses.
   - Do **not** add `UIManager.setLayoutAnimationEnabledExperimental` — it is a no-op on the New Architecture and logs a warning.
 - On fail (4 mistakes): all remaining categories auto-reveal.
 
 ### End-of-work-item checklist
 
 After completing any work item, update:
-- **PLAN.md** — add new known issues or planned work; remove stale descriptions. Before marking anything ✅, **ask the user to confirm the fix/feature is working as expected on device** — do not assume it is complete just because tests pass.
+- **PLAN.md** — follow the structure described below. Before marking anything ✅, **ask the user to confirm the fix/feature is working as expected on device** — do not assume it is complete just because tests pass.
 - **CLAUDE.md** — update architecture/game notes if implementation details changed
 - **Memory** (`~/.claude/projects/.../memory/project_nyt_app.md`) — current state, resolved bugs, next work
+
+### PLAN.md update conventions
+
+PLAN.md has these sections (in order): Goal, Structure, Service layer, Gameplay details, Animations, Dev/testing, Known issues / remaining work, History.
+
+**Known issues / remaining work** has two subsections:
+- `### Active bugs` — numbered list of open bugs. Remove an entry only when the fix is confirmed working on device.
+- `### Remaining features` — numbered backlog items.
+
+**History** — permanent record of decisions, attempts, and outcomes. **Never delete from this section.** When something is resolved, move a summary here from Active bugs / Remaining features rather than simply removing it. Record both what didn't work and what did, with enough detail that future sessions won't repeat failed attempts. Group entries by feature/area with a date.
 
 ### Coverage
 

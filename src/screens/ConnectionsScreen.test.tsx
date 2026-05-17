@@ -15,7 +15,7 @@ const panCreateSpy = jest.spyOn(PanResponder, 'create').mockImplementation((conf
 });
 
 // Make View.measure call back with known absolute coords so startDrag works
-jest.spyOn(View.prototype, 'measure').mockImplementation(function (callback) {
+const measureSpy = jest.spyOn(View.prototype, 'measure').mockImplementation(function (callback) {
   callback(0, 0, 80, 72, 50, 100); // fx, fy, w, h, px, py
 });
 
@@ -194,6 +194,52 @@ describe('ConnectionsScreen', () => {
     // Cancel drag
     panConfig?.onPanResponderTerminate?.({} as never, {} as never);
     await waitFor(() => expect(screen.queryByTestId('ghost-card')).toBeNull());
+  });
+
+  it('swap overlay animates when both card layouts are known', async () => {
+    // Give card-0 and card-5 distinct non-overlapping positions
+    let callCount = 0;
+    measureSpy.mockImplementation((cb: (fx: number, fy: number, w: number, h: number, px: number, py: number) => void) => {
+      callCount++;
+      if (callCount === 1) cb(0, 0, 80, 72, 0, 50);    // card-0 onLayout: px=0
+      else if (callCount === 2) cb(0, 0, 80, 72, 100, 50); // card-5 onLayout: px=100
+      else cb(0, 0, 80, 72, 50, 100);                   // startDrag + others
+    });
+
+    renderScreen();
+    await waitFor(() => screen.getByTestId('card-0'));
+
+    screen.getByTestId('card-0').props.onLayout?.({} as never); // cardLayouts[0]={x:0,y:50}
+    screen.getByTestId('card-5').props.onLayout?.({} as never); // cardLayouts[5]={x:100,y:50}
+
+    longPress(0);
+    await waitFor(() => screen.getByTestId('ghost-card'));
+
+    // pageX=150 lands in card-5 (100..180) but not card-0 (0..80) → target=5
+    panConfig?.onPanResponderRelease?.(
+      { nativeEvent: { pageX: 150, pageY: 80 } } as never,
+      {} as never,
+    );
+    // Animation callback fires async — wait for overlay to clear and swap to commit
+    await waitFor(() => expect(screen.queryByTestId('ghost-card')).toBeNull());
+    await waitFor(() => expect(screen.queryByTestId('overlay-0')).toBeNull());
+    expect(screen.getByTestId('card-0')).toBeTruthy();
+
+    measureSpy.mockImplementation(function (callback: (fx: number, fy: number, w: number, h: number, px: number, py: number) => void) {
+      callback(0, 0, 80, 72, 50, 100);
+    });
+  });
+
+  it('correct guess shows overlay while fading when layouts are known', async () => {
+    // Fire onLayout for all 4 yellow cards so they have measured positions
+    renderScreen();
+    await waitFor(() => screen.getByTestId('card-0'));
+    [0, 4, 8, 12].forEach(i => screen.getByTestId(`card-${i}`).props.onLayout?.({} as never));
+    select(0, 4, 8, 12);
+    fireEvent.press(screen.getByTestId('submit-button'));
+    // Overlay fades then state commits — wait for solved row
+    await waitFor(() => screen.getByTestId('solved-row-0'));
+    expect(screen.queryByTestId('overlay-0')).toBeNull();
   });
 
   it('swaps cards on drag to a valid target and renders drop-target style', async () => {
@@ -406,5 +452,41 @@ describe('ConnectionsScreen — image puzzle', () => {
     fireEvent.press(screen.getByTestId('submit-button'));
     await waitFor(() => screen.getByTestId('solved-row-0'));
     expect(screen.getByText('SLOT MACHINE, CARDS, DICE, CHIPS')).toBeTruthy();
+  });
+
+  it('fade overlay uses SvgUri for image cards when layouts are known', async () => {
+    renderScreen();
+    await waitFor(() => screen.getByTestId('card-0'));
+    [0, 4, 8, 12].forEach(i => screen.getByTestId(`card-${i}`).props.onLayout?.({} as never));
+    select(0, 4, 8, 12);
+    fireEvent.press(screen.getByTestId('submit-button'));
+    await waitFor(() => screen.getByTestId('solved-row-0'));
+  });
+
+  it('swap overlay uses SvgUri for image cards when layouts are known', async () => {
+    let callCount = 0;
+    measureSpy.mockImplementation((cb: (fx: number, fy: number, w: number, h: number, px: number, py: number) => void) => {
+      callCount++;
+      if (callCount === 1) cb(0, 0, 80, 72, 0, 50);
+      else if (callCount === 2) cb(0, 0, 80, 72, 100, 50);
+      else cb(0, 0, 80, 72, 50, 100);
+    });
+
+    renderScreen();
+    await waitFor(() => screen.getByTestId('card-0'));
+    screen.getByTestId('card-0').props.onLayout?.({} as never);
+    screen.getByTestId('card-5').props.onLayout?.({} as never);
+    longPress(0);
+    await waitFor(() => screen.getByTestId('ghost-card'));
+    panConfig?.onPanResponderRelease?.(
+      { nativeEvent: { pageX: 150, pageY: 80 } } as never,
+      {} as never,
+    );
+    await waitFor(() => expect(screen.queryByTestId('ghost-card')).toBeNull());
+    await waitFor(() => expect(screen.queryByTestId('overlay-0')).toBeNull());
+
+    measureSpy.mockImplementation(function (callback: (fx: number, fy: number, w: number, h: number, px: number, py: number) => void) {
+      callback(0, 0, 80, 72, 50, 100);
+    });
   });
 });
