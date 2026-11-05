@@ -68,5 +68,9 @@
       "src/**/*.{ts,tsx}",
       "!src/**/*.d.ts"
     ]
+  },
+  "overrides": {
+    "postcss": "^8.5.23",
+    "image-size": "^2.0.3"
   }
 }
